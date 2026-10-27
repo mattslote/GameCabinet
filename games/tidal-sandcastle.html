@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Tidal Sandcastle</title>
+<style>
+html,body{margin:0;height:100%;background:#0f2433;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+#stage{position:absolute;left:0;top:0;width:900px;height:450px;transform-origin:0 0}
+canvas{position:absolute;left:0;top:0;width:900px;height:450px;touch-action:none}
+.ov{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,24,36,.86);color:#fff;text-align:center}
+.ov h1{margin:0 0 6px;font-size:54px;letter-spacing:1px;color:#ffe08a;text-shadow:0 3px 0 #7a5a12}
+.ov p{margin:4px 40px 14px;font-size:18px;line-height:1.35;max-width:700px;color:#e3f1f8}
+button{font:inherit;font-weight:800;border:0;border-radius:14px;padding:12px 30px;font-size:22px;background:#ffe08a;color:#3b2c06;box-shadow:0 4px 0 #b08a1d;touch-action:manipulation}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #b08a1d}
+#tools{position:absolute;left:12px;bottom:10px;display:none;gap:8px}
+#tools button{font-size:17px;padding:9px 16px;border-radius:12px;background:rgba(20,50,72,.82);color:#cfe3ee;box-shadow:0 3px 0 rgba(0,0,0,.35)}
+#tools button.on{background:#ffe08a;color:#3b2c06;box-shadow:0 3px 0 #b08a1d}
+#rotate{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0f2433;color:#ffe08a;font-size:24px;font-weight:800;text-align:center;padding:30px;z-index:10}
+@media (orientation:portrait){#rotate{display:flex}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="tools"><button id="tHand" class="on">✋ Hands</button><button id="tShov">Shovel</button></div>
+  <div id="title" class="ov">
+    <h1>Tidal Sandcastle</h1>
+    <p>The tide is coming in. Press on the sand to grab a handful, drag it where you want it, and let go to drop it. Hands are quick but carry little. The shovel carries a lot more but moves slowly, and on the castle it pulls loose sand in and packs it so it lasts. Loose sand washes away fast. But the ocean always wins: the tide never turns, it only rises faster. How long can you hold it?</p>
+    <button id="play">Play</button>
+  </div>
+  <div id="over" class="ov"></div>
+</div>
+<div id="rotate">Rotate your phone to landscape</div>
+
+<script>
+(()=>{
+const WW=1400,WH=700,SWd=900,SHd=450,Z=SWd/WW,K=1/Z,CW=6,N=Math.floor(WW/CW)+1;
+const PLAT=352,SHORE_X=690,SLOPE=.24,DUNE_X=340,DUNE_S=.26,CX0=420,SEC_W=46;
+const CI0=Math.ceil(CX0/CW),CI1=Math.floor((CX0+SEC_W*5)/CW);
+const BED=620,TOP_LIM=230,MAXD=3.8,STEEP=90;
+const SZ0=CX0-40,SZ1=CX0+SEC_W*5+50;   // shovel sculpts inside this zone, scoops outside it
+
+/* ---------- tuning ---------- */
+const DAY=270;               // pace: seconds for the tide to climb from the start level to above the castle base
+const RISE_LIN=.6, RISE_QUAD=.004; // after DAY the tide keeps accelerating until it swallows everything
+const HCAP=160, DIG=360;     // hands: handful size and how fast it fills
+const SCAP=480, SDIG=700;    // shovel: much bigger load...
+const SHOV_FAST=430, SHOV_SLOW=150; // ...but it moves slowly (empty speed -> full speed, world px/s)
+const PULL=130;               // shovel on the castle: how fast it pulls loose sand in toward the blade
+const ER=34;                 // surf erosion speed on loose sand
+const FIRM=2.5;              // packing slows erosion: rate / (1 + FIRM * firmness)
+const TIDE_LOW=52, TIDE_HIGH=-16; // sea level relative to the castle base at start / at high tide
+const SET_CHANCE=.18, ROGUE=.1, WAVE_GAP=[2.0,3.2];
+
+const lerp=(a,b,t)=>a+(b-a)*t, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function rr(c,x,y,w,h,r){c.beginPath(); if(c.roundRect)c.roundRect(x,y,w,h,r); else c.rect(x,y,w,h);}
+
+const canvas=document.getElementById('c'), ctx=canvas.getContext('2d'), stage=document.getElementById('stage');
+const elTitle=document.getElementById('title'), elOver=document.getElementById('over'), elTools=document.getElementById('tools');
+const bHand=document.getElementById('tHand'), bShov=document.getElementById('tShov');
+let scale=1,dpr=1;
+function fit(){
+  const s=Math.min(innerWidth/SWd,innerHeight/SHd); scale=s; dpr=Math.min(3,window.devicePixelRatio||1);
+  stage.style.transform=`translate(${(innerWidth-SWd*s)/2}px,${(innerHeight-SHd*s)/2}px) scale(${s})`;
+  canvas.width=Math.round(SWd*s*dpr); canvas.height=Math.round(SHd*s*dpr);
+}
+addEventListener('resize',fit); fit();
+
+/* ---------- audio ---------- */
+let ac=null;
+function A(){ if(!ac){try{ac=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} if(ac&&ac.state==='suspended')ac.resume(); }
+function tone(f,d,type='sine',v=.15,slide=0,delay=0){
+  if(!ac)return; try{
+  const t0=ac.currentTime+delay,o=ac.createOscillator(),g=ac.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,t0);
+  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t0+d);
+  g.gain.setValueAtTime(v,t0); g.gain.exponentialRampToValueAtTime(.001,t0+d);
+  o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0+d+.02);}catch(e){}
+}
+function noise(d,v,f){
+  if(!ac)return; try{
+  const n=Math.floor(ac.sampleRate*d),b=ac.createBuffer(1,n,ac.sampleRate),dd=b.getChannelData(0);
+  for(let i=0;i<n;i++)dd[i]=(Math.random()*2-1)*(1-i/n);
+  const s=ac.createBufferSource(),fl=ac.createBiquadFilter(),g=ac.createGain();
+  s.buffer=b; fl.type='lowpass'; fl.frequency.value=f; g.gain.value=v;
+  s.connect(fl); fl.connect(g); g.connect(ac.destination); s.start();}catch(e){}
+}
+const sfx={
+  crash(a){noise(.5,Math.min(.35,.06+a/220),900);},
+  scoop(){noise(.07,.04,1800);},
+  drop(){noise(.25,.12,1400);},
+  pack(){tone(180,.05,'triangle',.05,-40);},
+  thud(){tone(150,.12,'triangle',.08,-60);},
+  start(){tone(330,.1,'triangle',.1);tone(495,.15,'triangle',.1,0,.1);},
+  win(){tone(523,.12,'triangle',.12);tone(659,.12,'triangle',.12,0,.12);tone(784,.25,'triangle',.12,0,.24);},
+  over(){tone(400,.4,'sawtooth',.12,-300);tone(260,.6,'sawtooth',.12,-200,.3);}
+};
+
+/* ---------- world ---------- */
+// G = sand surface y per column (bigger = lower). P = how firmly packed the column is (0 loose .. 1 sculpted).
+const base0=new Float32Array(N), G=new Float32Array(N), P=new Float32Array(N), S=new Float32Array(N), WHt=new Float32Array(N);
+for(let i=0;i<N;i++){const x=i*CW; base0[i]=x<DUNE_X?PLAT-DUNE_S*(DUNE_X-x):PLAT+SLOPE*Math.max(0,x-SHORE_X);}
+const dots=[]; for(let i=0;i<300;i++)dots.push({x:Math.random()*WW,y:260+Math.random()*420,r:1.4+Math.random()*2.2});
+function groundAt(x){const f=clamp(x/CW,0,N-1),i=Math.floor(f),j=Math.min(N-1,i+1);return lerp(G[i],G[j],f-i);}
+const pileAt=i=>Math.max(0,base0[i]-G[i]);
+function buildCastle(){
+  for(let i=0;i<N;i++){G[i]=base0[i];P[i]=0;}
+  for(let i=CI0;i<CI1;i++){
+    const s=clamp(Math.floor((i*CW-CX0)/SEC_W),0,4);
+    G[i]=PLAT-(s%2===0?80:46); P[i]=1;
+  }
+}
+function stats(){let M=0,F=0;for(let i=CI0;i<=CI1;i++){const h=pileAt(i);M+=h;F+=h*P[i];}return {M,F};}
+
+/* ---------- state ---------- */
+let state='title', tool='hand', time=0, tm=0, best=0, load=0, M0=1, endT=0, shake=0, hintT=0, spawnT=3, YL=PLAT+TIDE_LOW, phase=0, scT=0;
+try{best=+localStorage.getItem('tidalsandcastle_best_time')||0;}catch(e){}
+let waves=[], setQ=[], parts=[], texts=[], ptr=null, st={M:1,F:1};
+
+function tideCalc(){
+  const span=TIDE_LOW-TIDE_HIGH, t=tm;
+  const rise=t<=DAY?span*t/DAY:span+RISE_LIN*(t-DAY)+RISE_QUAD*(t-DAY)*(t-DAY);
+  YL=PLAT+TIDE_LOW-rise; phase=Math.min(1.7,t/DAY);
+}
+function setTool(t){tool=t; bHand.className=t==='hand'?'on':''; bShov.className=t==='shovel'?'on':'';}
+bHand.onclick=()=>{A(); if(!ptr)setTool('hand');}; bShov.onclick=()=>{A(); if(!ptr)setTool('shovel');};
+function newGame(){
+  buildCastle(); st=stats(); M0=Math.max(1,st.M);
+  waves=[]; setQ=[]; parts=[]; texts=[]; ptr=null; load=0; tm=0; why=''; spawnT=4; hintT=16; setTool('hand');
+  tideCalc(); hideAll(); elTools.style.display='flex'; state='play'; sfx.start();
+}
+function hideAll(){elTitle.style.display=elOver.style.display='none';}
+
+/* ---------- sand ---------- */
+function addSand(i,amt){
+  if(i<0||i>=N||amt<=0)return 0;
+  amt=Math.min(amt,G[i]-TOP_LIM); if(amt<=0)return 0;
+  const h=Math.max(8,pileAt(i));
+  P[i]*=h/(h+amt); G[i]-=amt; return amt;
+}
+function takeSand(i,amt){
+  if(i<0||i>=N)return 0;
+  amt=Math.min(amt,BED-G[i]); if(amt<=0)return 0;
+  G[i]+=amt; return amt;
+}
+function pourAt(x,amt,sg){
+  const ci=Math.round(x/CW), R=Math.ceil(sg*2.2); let sum=0;
+  for(let j=-R;j<=R;j++)sum+=Math.exp(-(j*j)/(sg*sg));
+  let used=0;
+  for(let j=-R;j<=R;j++)used+=addSand(ci+j,amt*Math.exp(-(j*j)/(sg*sg))/sum);
+  return used;
+}
+function moveSand(a,b,m){
+  G[a]+=m; const hb=Math.max(8,pileAt(b)); G[b]-=m; P[b]*=hb/(hb+m);
+}
+function relax(){
+  for(let pass=0;pass<2;pass++)for(let i=0;i<N-1;i++){
+    const dy=G[i+1]-G[i];
+    if(dy>0){const lim=lerp(MAXD,STEEP,P[i]); if(dy>lim)moveSand(i,i+1,(dy-lim)*.3);}
+    else{const lim=lerp(MAXD,STEEP,P[i+1]); if(-dy>lim)moveSand(i+1,i,(-dy-lim)*.3);}
+  }
+}
+function dust(x,y,n,color){
+  for(let k=0;k<n;k++)parts.push({x:x+(Math.random()-.5)*16,y:y,vx:(Math.random()-.5)*90,vy:-30-Math.random()*70,rot:Math.random()*6,vr:(Math.random()-.5)*10,size:3+Math.random()*3,color:color||'#e8c88a',life:.35+Math.random()*.25});
+}
+
+/* ---------- waves ---------- */
+function randAmp(){
+  const am=52+50*phase;
+  let a=8+(am-8)*Math.pow(Math.random(),1.9);
+  if(Math.random()<ROGUE)a*=1.4;
+  return Math.min(130,a);
+}
+function spawnWave(a){waves.push({x:WW+120,a,sp:105+a*1.2,sig:58+a*1.0,crashed:false});}
+function spawnLogic(dt){
+  spawnT-=dt; if(spawnT>0)return;
+  const a=randAmp(), set=Math.random()<SET_CHANCE;
+  if(set){spawnWave(a*.6);setQ.push({t:.9,a:a},{t:1.8,a:a*.75});}
+  else spawnWave(a);
+  spawnT=(WAVE_GAP[0]+Math.random()*WAVE_GAP[1])*(1-.4*Math.min(1,phase))+(set?2.5:0);
+}
+function runQueue(dt){
+  for(const q of setQ)q.t-=dt;
+  for(const q of setQ.filter(q=>q.t<=0))spawnWave(q.a);
+  setQ=setQ.filter(q=>q.t>0);
+}
+function bump(w,x){const d=x-w.x,u=d/(d<0?w.sig*.55:w.sig);return Math.exp(-u*u);}
+function splash(x,y,a){
+  if(a<8)return;
+  const n=Math.min(22,4+Math.round(a*.3));
+  for(let i=0;i<n;i++)parts.push({x:x+(Math.random()-.5)*24,y:y-4,vx:-30-Math.random()*100,vy:-(60+Math.random()*(100+a*3)),rot:0,vr:0,size:3+Math.random()*4,color:Math.random()<.5?'#fff':'#bfe6f7',life:.5+Math.random()*.5,round:1});
+  if(a>14)sfx.crash(a);
+}
+function updateWaves(dt){
+  for(const w of waves){
+    w.x-=w.sp*dt;
+    const gi=clamp(Math.round(w.x/CW),0,N-1); let pe=0;
+    for(let k=-2;k<=2;k++)pe=Math.max(pe,pileAt(clamp(gi+k,0,N-1)));
+    w.a-=(1.2+.8*pe)*dt;
+    const gy=groundAt(w.x), gc=YL-gy;
+    if(w.a<=gc-1){
+      if(!w.crashed){w.crashed=true;splash(w.x,gy,w.a);}
+      w.a-=75*dt; w.sp*=Math.pow(.02,dt);
+    }
+  }
+  waves=waves.filter(w=>w.a>1.5&&w.x>-160);
+}
+function computeSurface(){
+  for(let i=0;i<N;i++){
+    let wh=0; const x=i*CW;
+    for(const w of waves)wh+=w.a*bump(w,x);
+    WHt[i]=wh; S[i]=YL-wh+Math.sin(i*.5+time*2.2)*1.6;
+  }
+}
+let hitT=0, why='';
+function erode(dt){
+  let hit=0;
+  for(let i=1;i<N-1;i++){
+    const h=pileAt(i); if(h<=.3)continue;
+    let e=0;
+    if(WHt[i]>2){const d=G[i]-S[i]; if(d>0)e=Math.min(1,d/12)*WHt[i];}
+    if(WHt[i+1]>2){const dN=G[i+1]-S[i+1], hf=G[i+1]-G[i]; if(dN>0&&hf>0)e=Math.max(e,Math.min(1,Math.min(dN,hf)/12)*WHt[i+1]);}
+    if(e<=0)continue;
+    const dm=Math.min(h,ER*(e/30)/(1+FIRM*P[i])*dt);
+    G[i]+=dm; P[i]=Math.max(0,P[i]-.06*dm);
+    const dep=dm*.7; for(let k=1;k<=3;k++)addSand(i+k,dep/3);
+    if(i>=CI0&&i<=CI1)hit+=dm;
+  }
+  if(hit>0){hitT-=dt; if(hitT<=0){sfx.thud();hitT=.25;}}
+}
+
+/* ---------- hands & shovel ---------- */
+// Press on sand to grab a clump that rides under your finger (hands) or in the shovel head.
+// Drag to carry it sideways, let go to drop it. Shovel pressed inside the castle zone pulls loose sand in and packs it instead.
+const SCW=[.3,.7,1,.7,.3];
+function gather(hx,hy,dt,rate,R,sg,cap){
+  const ci=Math.round(hx/CW); let got=0;
+  for(let j=-R;j<=R&&load+got<cap;j++){
+    const i=ci+j; if(i<0||i>=N)continue;
+    const lvl=Math.max(hy,G[i]+14), w=Math.exp(-(j*j)/(sg*sg));
+    got+=takeSand(i,Math.min(rate*dt*w*Math.pow(1-P[i],2),lvl-G[i],cap-load-got));
+  }
+  return got;
+}
+function sculpt(p,dt){
+  // Shovel on the castle never throws sand away. Hold it above the sand where you want the wall to reach:
+  // it pulls loose sand in from the sides (conserved) and packs it. Held inside the sand it just packs.
+  const ci=Math.round(p.x/CW); let contact=false, pulled=0;
+  for(let j=-2;j<=2;j++){
+    const i=ci+j; if(i<0||i>=N)continue;
+    const w=SCW[j+2];
+    if(p.y<G[i]-1){
+      let want=Math.min(G[i]-p.y,PULL*dt*w), got=0;
+      for(let d=3;d<=10&&got<want;d++)for(const sd of [-1,1]){
+        const k=ci+sd*d; if(k<0||k>=N||got>=want)continue;
+        if(P[k]>.85)continue;
+        const t=takeSand(k,Math.min(want-got,pileAt(k)*.5)); got+=t;
+      }
+      if(got>0){addSand(i,got);P[i]=Math.max(P[i],.95);pulled+=got;}
+    }
+    if(p.y>=G[i]-6){contact=true; P[i]+=(1-P[i])*Math.min(1,3*dt*w);}
+  }
+  p.touch=contact||pulled>0;
+  if(pulled>0&&Math.random()<.4)dust(p.x,groundAt(p.x),1,'#d9b57a');
+  if(p.touch){scT-=dt; if(scT<=0){sfx.pack();scT=.14;}}
+}
+function playerAct(dt){
+  const p=ptr; if(!p)return;
+  if(p.mode==='sculpt'){p.hx=p.x;p.hy=p.y;sculpt(p,dt);return;}
+  if(tool==='shovel'){
+    const sp=lerp(SHOV_FAST,SHOV_SLOW,clamp(load/SCAP,0,1)), dx=p.x-p.hx, dy=p.y-p.hy, d=Math.hypot(dx,dy), step=sp*dt;
+    if(d<=step){p.hx=p.x;p.hy=p.y;}else{p.hx+=dx/d*step;p.hy+=dy/d*step;}
+  }else{p.hx=p.x;p.hy=p.y;}
+  const cap=tool==='hand'?HCAP:SCAP, gy=groundAt(p.hx);
+  p.touch=p.hy>=gy-10;
+  if(p.touch&&load<cap){
+    const got=tool==='hand'?gather(p.hx,p.hy,dt,DIG,3,1.4,cap):gather(p.hx,p.hy,dt,SDIG,6,2.8,cap);
+    if(got>0){load+=got; dust(p.hx,gy,1); scT-=dt; if(scT<=0){sfx.scoop();scT=.12;}}
+  }
+}
+function dropLoad(x){
+  if(load<=0)return;
+  const used=pourAt(x,load,tool==='hand'?2.2:3.4); load=0;
+  if(used>0){dust(x,groundAt(x),10); sfx.drop();}
+}
+
+/* ---------- main update ---------- */
+function addText(x,y,txt,color,size){texts.push({x,y,txt,color,size:size||24,life:1.3});}
+const fmt=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+function update(dt){
+  time+=dt;
+  if(state==='play'){
+    tm+=dt; tideCalc();
+    spawnLogic(dt); runQueue(dt); playerAct(dt);
+  }
+  const live=(state==='play'||state==='dying');
+  if(live){updateWaves(dt);relax();}
+  computeSurface();
+  if(live)erode(dt);
+  st=stats();
+  if(state==='play'){
+    let top=1e9; for(let i=CI0;i<=CI1;i++)top=Math.min(top,G[i]);
+    if(st.M<.1*M0){why='eroded';}
+    else if(tm>8&&YL<top-6){why='drowned';}
+    if(why){state='dying';endT=1.8;ptr=null;load=0;shake=.4;sfx.over();addText(CX0+115,PLAT-130,why==='drowned'?'Swallowed by the tide!':'Washed away!','#ff8a6b',40);}
+  }
+  if(state==='dying'){endT-=dt;if(endT<=0)finish();}
+  for(const p of parts){p.vy+=900*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.rot+=p.vr*dt;p.life-=dt;}
+  parts=parts.filter(p=>p.life>0);
+  for(const t of texts){t.y-=40*dt;t.life-=dt;}
+  texts=texts.filter(t=>t.life>0);
+  shake=Math.max(0,shake-dt); hintT=Math.max(0,hintT-dt);
+}
+function finish(){
+  const score=Math.round(tm);
+  if(score>best){best=score;try{localStorage.setItem('tidalsandcastle_best_time',best);}catch(e){}}
+  state='over'; ptr=null; elTools.style.display='none';
+  const secs=Math.round(tm);
+  const verdict=secs<150?'It never stood a chance.':secs<240?'A decent stand.':secs<330?'A real fight.':'Heroic. The sea still won.';
+  const how=why==='drowned'?'The tide rose over the top of it':'The surf wore it away';
+  elOver.innerHTML=`<h1>The Ocean Wins</h1><p>${how}. Your castle held out for ${fmt(tm)}. ${verdict}<br>Best: ${fmt(best)}</p><button id="again">Play again</button>`;
+  elOver.style.display='flex';
+  document.getElementById('again').onclick=()=>{A();newGame();};
+}
+document.getElementById('play').onclick=()=>{A();newGame();};
+
+/* ---------- input ---------- */
+function pos(e){const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*WW,y:(e.clientY-r.top)/r.height*WH};}
+canvas.addEventListener('pointerdown',e=>{
+  e.preventDefault(); A(); if(state!=='play'||ptr)return;
+  const p=pos(e);
+  ptr={id:e.pointerId,x:p.x,y:p.y,hx:p.x,hy:p.y,touch:false,mode:(tool==='shovel'&&p.x>=SZ0&&p.x<=SZ1)?'sculpt':'carry'};
+  try{canvas.setPointerCapture(e.pointerId);}catch(_){}
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!ptr||e.pointerId!==ptr.id)return; e.preventDefault();
+  const p=pos(e); ptr.x=p.x; ptr.y=p.y;
+});
+function release(e){
+  if(!ptr||e.pointerId!==ptr.id)return;
+  if(ptr.mode==='carry'&&state==='play')dropLoad(ptr.hx);
+  load=0; ptr=null;
+}
+canvas.addEventListener('pointerup',release);
+canvas.addEventListener('pointercancel',release);
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---------- drawing ---------- */
+function cloud(c,x,y,s){
+  c.fillStyle='rgba(255,255,255,.85)';
+  [[0,0,46,13],[26,-8,28,12],[-24,-5,24,10]].forEach(([dx,dy,rx,ry])=>{c.beginPath();c.ellipse(x+dx*s,y+dy*s,rx*s,ry*s,0,0,7);c.fill();});
+}
+function drawSky(c){
+  const g=c.createLinearGradient(0,0,0,PLAT+20); g.addColorStop(0,'#74c0e8'); g.addColorStop(1,'#d6f1fa');
+  c.fillStyle=g; c.fillRect(0,0,WW,WH);
+  c.fillStyle='rgba(255,246,190,.35)'; c.beginPath(); c.arc(1130,110,80,0,7); c.fill();
+  c.fillStyle='#fff3b0'; c.beginPath(); c.arc(1130,110,46,0,7); c.fill();
+  for(let k=0;k<4;k++)cloud(c,((time*9+k*520)%(WW+400))-200,70+k*48,1.5);
+}
+function drawTerrain(c){
+  c.beginPath(); c.moveTo(0,WH); for(let i=0;i<N;i++)c.lineTo(i*CW,G[i]); c.lineTo(WW,WH); c.closePath();
+  const g=c.createLinearGradient(0,PLAT-100,0,WH); g.addColorStop(0,'#f0d9a0'); g.addColorStop(1,'#c9a366');
+  c.fillStyle=g; c.fill();
+  c.save(); c.clip();
+  const w=c.createLinearGradient(0,YL-14,0,YL+50); w.addColorStop(0,'rgba(90,60,25,0)'); w.addColorStop(1,'rgba(90,60,25,.32)');
+  c.fillStyle=w; c.fillRect(0,YL-14,WW,WH);
+  c.fillStyle='rgba(110,75,30,.2)'; for(const d of dots){c.beginPath();c.arc(d.x,d.y,d.r,0,7);c.fill();}
+  c.fillStyle='#5a5048'; c.fillRect(0,BED,WW,WH-BED);
+  c.restore();
+  c.strokeStyle='rgba(255,247,215,.85)'; c.lineWidth=3; c.beginPath();
+  for(let i=0;i<N;i++){if(i===0)c.moveTo(0,G[0]);else c.lineTo(i*CW,G[i]);}
+  c.stroke();
+}
+function drawFirm(c){
+  for(let i=0;i<N;i++){
+    const h=pileAt(i); if(h<3||P[i]<.35)continue;
+    const a=clamp((P[i]-.35)/.4,0,1), x=i*CW-CW/2, top=G[i];
+    c.fillStyle=`rgba(238,203,142,${a})`; c.fillRect(x,top,CW+.6,h);
+    if(i<N-1&&G[i+1]>top+6){c.fillStyle=`rgba(180,138,80,${a*.55})`; c.fillRect(x+CW-2,top,2.8,Math.min(h,G[i+1]-top));}
+    c.fillStyle=`rgba(120,80,30,${a*.28})`;
+    for(let y=base0[i]-12;y>top+2;y-=12)c.fillRect(x,y,CW+.6,1.4);
+    if(h>24&&P[i]>.7&&i>0&&i<N-1&&Math.abs(G[i-1]-top)<3&&Math.abs(G[i+1]-top)<3&&i%2===0){
+      c.fillStyle=`rgba(238,203,142,${a})`; c.fillRect(x,top-8,CW+.6,8);
+      c.fillStyle=`rgba(120,80,30,${a*.28})`; c.fillRect(x,top-8,CW+.6,1.4);
+    }
+  }
+  let bi=-1,bt=1e9;
+  for(let i=Math.floor((CX0+SEC_W*2)/CW);i<=Math.floor((CX0+SEC_W*3)/CW);i++)if(P[i]>.6&&pileAt(i)>50&&G[i]<bt){bt=G[i];bi=i;}
+  if(bi>=0){
+    const x=bi*CW, y0=bt-44; c.strokeStyle='#6b4a2a'; c.lineWidth=2.5; c.beginPath(); c.moveTo(x,bt-6); c.lineTo(x,y0); c.stroke();
+    c.fillStyle='#e8504a'; c.beginPath(); c.moveTo(x,y0); c.lineTo(x+20,y0+6+Math.sin(time*6)*2); c.lineTo(x,y0+12); c.fill();
+  }
+  const dc=Math.round((CX0+SEC_W*2.5)/CW); if(P[dc]>.6&&G[dc]<PLAT-40){
+    c.fillStyle='#6b4a2a'; c.beginPath(); c.moveTo(dc*CW-7,PLAT); c.lineTo(dc*CW-7,PLAT-14); c.arc(dc*CW,PLAT-14,7,Math.PI,0); c.lineTo(dc*CW+7,PLAT); c.fill();
+  }
+}
+function drawWater(c){
+  const g=c.createLinearGradient(0,YL-100,0,WH); g.addColorStop(0,'rgba(120,205,240,.62)'); g.addColorStop(1,'rgba(28,105,185,.82)');
+  let prev=false;
+  for(let i=0;i<N;i++){
+    const t=G[i], s=S[i], wet=s<t-.3, x=i*CW-CW/2;
+    if(wet){
+      c.fillStyle=g; c.fillRect(x,s,CW+.7,t-s);
+      c.fillStyle='rgba(255,255,255,.5)'; c.fillRect(x,s,CW+.7,3);
+      if(!prev||(t-s<6&&WHt[i]>3)){c.fillStyle='rgba(255,255,255,.9)'; c.beginPath(); c.arc(x+3,t-2+Math.sin(time*9+i)*2,4.6,0,7); c.fill();}
+    }
+    prev=wet;
+  }
+  for(const w of waves){
+    if(w.a<12)continue;
+    for(let k=-2;k<=2;k++){
+      const x=w.x+k*10, i=clamp(Math.round(x/CW),0,N-1);
+      if(S[i]<G[i]){c.fillStyle='rgba(255,255,255,.85)'; c.beginPath(); c.arc(x,S[i]-1+Math.sin(time*8+k)*2,3.4+w.a/20,0,7); c.fill();}
+    }
+  }
+}
+function drawParts(c){
+  for(const p of parts){
+    c.globalAlpha=clamp(p.life*2,0,1); c.fillStyle=p.color;
+    if(p.round){c.beginPath();c.arc(p.x,p.y,p.size,0,7);c.fill();}
+    else{c.save();c.translate(p.x,p.y);c.rotate(p.rot);c.fillRect(-p.size/2,-p.size/2,p.size,p.size*.7);c.restore();}
+  }
+  c.globalAlpha=1;
+}
+function drawShovel(c,load,active){
+  c.save(); c.rotate(.35);
+  c.strokeStyle='#8a5a2a'; c.lineWidth=5; c.lineCap='round'; c.beginPath(); c.moveTo(0,-20); c.lineTo(0,-62); c.stroke();
+  c.fillStyle=active?'#cfe3f2':'#9fb4c4'; rr(c,-11,-24,22,24,5); c.fill();
+  c.strokeStyle='rgba(20,40,60,.6)'; c.lineWidth=1.5; c.stroke();
+  if(load>0){const r=7+Math.sqrt(load)*.8; c.fillStyle='#e8c88a'; c.strokeStyle='#b8925a'; c.beginPath(); c.ellipse(0,-24,r,r*.75,0,Math.PI,2*Math.PI); c.closePath(); c.fill(); c.stroke();}
+  c.restore();
+}
+function drawCursor(c){
+  if(state!=='play')return;
+  if(tool==='shovel'&&!ptr){
+    c.strokeStyle='rgba(255,236,160,.8)'; c.lineWidth=3; c.setLineDash([10,8]);
+    rr(c,SZ0,PLAT-150,SZ1-SZ0,170,16); c.stroke(); c.setLineDash([]);
+    c.save(); c.translate((SZ0+SZ1)/2,PLAT-160); c.scale(K,K); c.font='800 14px -apple-system,system-ui,sans-serif'; c.textAlign='center'; c.fillStyle='rgba(8,20,30,.8)'; c.fillText('Hold the shovel at the height you want. It pulls in loose sand and packs it',1,1); c.fillStyle='#fff3b0'; c.fillText('Hold the shovel at the height you want. It pulls in loose sand and packs it',0,0); c.restore();
+    return;
+  }
+  const p=ptr; if(!p)return;
+  if(p.mode==='sculpt'){
+    c.strokeStyle='rgba(255,255,255,.85)'; c.lineWidth=3; c.beginPath(); c.moveTo(p.x-2.5*CW,p.y); c.lineTo(p.x+2.5*CW,p.y); c.stroke();
+    c.save(); c.translate(p.x,p.y); c.scale(K,K); drawShovel(c,0,p.touch); c.restore();
+    return;
+  }
+  if(tool==='hand'){
+    c.save(); c.translate(p.x,p.y); c.scale(K,K);
+    if(load>0){
+      const r=5+Math.sqrt(load)*1;
+      c.fillStyle='#e8c88a'; c.strokeStyle='#b8925a'; c.lineWidth=1.5;
+      c.beginPath(); c.ellipse(0,11,r,r*.75,0,Math.PI,2*Math.PI); c.closePath(); c.fill(); c.stroke();
+    }
+    c.strokeStyle='rgba(255,255,255,.9)'; c.lineWidth=2.5; c.beginPath(); c.arc(0,0,14,0,7); c.stroke();
+    if(load>=HCAP-1){c.font='800 14px -apple-system,system-ui,sans-serif';c.textAlign='center';c.fillStyle='#fff';c.fillText('Full',0,-22);}
+    c.restore();
+  }else{
+    if(Math.hypot(p.x-p.hx,p.y-p.hy)>6){
+      c.strokeStyle='rgba(255,255,255,.55)'; c.lineWidth=2.5; c.setLineDash([4,6]); c.beginPath(); c.moveTo(p.hx,p.hy); c.lineTo(p.x,p.y); c.stroke(); c.setLineDash([]);
+    }
+    c.strokeStyle='rgba(255,255,255,.9)'; c.lineWidth=2.5; c.beginPath(); c.arc(p.x,p.y,10*K,0,7); c.stroke();
+    c.save(); c.translate(p.hx,p.hy); c.scale(K,K); drawShovel(c,load,p.touch); c.restore();
+    if(load>=SCAP-1){c.save();c.translate(p.hx,p.hy);c.scale(K,K);c.font='800 14px -apple-system,system-ui,sans-serif';c.textAlign='center';c.fillStyle='#fff';c.fillText('Full',0,-70);c.restore();}
+  }
+}
+function drawTexts(c){
+  for(const t of texts){
+    c.globalAlpha=clamp(t.life*2,0,1); c.font=`900 ${Math.round(t.size*K)}px -apple-system,system-ui,sans-serif`; c.textAlign='center';
+    c.fillStyle='#000'; c.fillText(t.txt,t.x+3,t.y+3); c.fillStyle=t.color; c.fillText(t.txt,t.x,t.y); c.globalAlpha=1;
+  }
+}
+function drawHUD(c){
+  c.textBaseline='alphabetic'; c.textAlign='left';
+  c.fillStyle='rgba(8,20,30,.55)'; rr(c,10,10,210,40,12); c.fill();
+  c.font='800 14px -apple-system,system-ui,sans-serif'; c.fillStyle='#e9f3fa'; c.fillText('Castle',22,28);
+  const mf=clamp(st.M/M0,0,1), ff=clamp(st.F/M0,0,1);
+  c.fillStyle='rgba(255,255,255,.2)'; rr(c,22,33,186,8,4); c.fill();
+  c.fillStyle='#e8c88a'; rr(c,22,33,Math.max(.1,186*mf),8,4); c.fill();
+  c.fillStyle='#9be7a8'; rr(c,22,33,Math.max(.1,186*Math.min(ff,mf)),8,4); c.fill();
+  c.fillStyle='rgba(8,20,30,.55)'; rr(c,SWd-226,10,216,40,12); c.fill();
+  c.font='800 14px -apple-system,system-ui,sans-serif'; c.fillStyle='#e9f3fa'; c.fillText('Time '+fmt(tm)+'   Tide rising',SWd-214,28);
+  c.fillStyle='rgba(255,255,255,.2)'; rr(c,SWd-214,33,192,8,4); c.fill();
+  c.fillStyle='#6cc4f0'; rr(c,SWd-214,33,Math.max(.1,192*clamp((TIDE_LOW+PLAT-YL)/(TIDE_LOW+86),0,1)),8,4); c.fill();
+  if(hintT>0&&state==='play'){
+    c.globalAlpha=Math.min(1,hintT); c.textAlign='center'; c.font='800 16px -apple-system,system-ui,sans-serif';
+    const l1=tool==='hand'?'Press on sand to grab a handful, drag it, let go to drop':'Beach: scoop a big load (slow). Castle: hold the blade where the wall should reach';
+    c.fillStyle='rgba(8,20,30,.75)'; c.fillText(l1,SWd/2+1,81); c.fillStyle='#fff'; c.fillText(l1,SWd/2,80); c.globalAlpha=1;
+  }
+}
+function draw(){
+  const c=ctx; c.setTransform(scale*dpr*Z,0,0,scale*dpr*Z,0,0); c.clearRect(0,0,WW,WH);
+  c.save();
+  if(shake>0)c.translate((Math.random()-.5)*shake*30,(Math.random()-.5)*shake*30);
+  drawSky(c); drawTerrain(c); drawFirm(c); drawWater(c); drawParts(c); drawCursor(c); drawTexts(c);
+  c.restore();
+  c.setTransform(scale*dpr,0,0,scale*dpr,0,0);
+  drawHUD(c);
+}
+
+/* ---------- loop ---------- */
+buildCastle(); st=stats(); M0=Math.max(1,st.M); tideCalc(); computeSurface();
+elTitle.style.display='flex';
+let last=performance.now();
+function loop(now){
+  let dt=Math.min(.033,(now-last)/1000); last=now;
+  if(innerHeight>innerWidth)dt=0;
+  update(dt); draw(); requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

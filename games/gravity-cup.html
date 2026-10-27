@@ -1,0 +1,1485 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Gravity Cup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Semi+Condensed:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  /* Layout: a one-column heat sheet. Garage on top, then a sticky "weigh in" dock; the race view is one wide track window with a profile strip under it. */
+  :root {
+    --bg: #12151d;
+    --panel: #1b2030;
+    --panel-2: #242b40;
+    --line: #313a52;
+    --ink: #f1ece0;
+    --dim: #a2a9bd;
+    --pine: #d9a566;
+    --pine-dk: #9c6a2b;
+    --gold: #ffc527;
+    --gold-ink: #1b1405;
+    --red: #ea4b3c;
+    --green: #47c98a;
+    --f-display: 'Alfa Slab One', Georgia, 'Times New Roman', serif;
+    --f-body: 'Barlow Semi Condensed', 'Helvetica Neue', Arial, sans-serif;
+    --f-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 16px/1.4 var(--f-body);
+    padding-inline: 16px;
+    padding-block: 12px 0;
+  }
+  .app { max-width: 520px; margin-inline: auto; display: grid; gap: 18px; padding-bottom: 8px; }
+  h1, h2, h3, p { margin: 0; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  .top { display: grid; gap: 10px; }
+  h1 {
+    font: 400 1.9rem/1 var(--f-display);
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: .02em;
+  }
+  .sub { color: var(--dim); font-size: .98rem; max-width: 38ch; }
+  .pips { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; }
+  .pips li {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center;
+    font: 700 .8rem var(--f-mono);
+    border: 2px solid var(--line); color: var(--dim);
+  }
+  .pips li.done { border-color: var(--pine); color: var(--ink); background: var(--panel-2); }
+  .pips li.now { border-color: var(--gold); color: var(--gold); }
+
+  .eyebrow { font: 500 .72rem var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  .dim { color: var(--dim); }
+  .mini { display: block; width: 100%; height: 66px; }
+
+  .heat { display: grid; gap: 6px; }
+  .heat h2 { font: 400 1.5rem/1.1 var(--f-display); }
+  .heat .tip { color: var(--ink); max-width: 44ch; }
+  .heat .meta { font: 500 .78rem var(--f-mono); color: var(--dim); }
+
+  .bench {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px; display: grid; gap: 16px; min-width: 0;
+  }
+  .namerow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .namerow label { flex: 0 0 100%; }
+  .namerow input {
+    flex: 1 1 150px; min-width: 0; min-height: 44px;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 10px; padding: 8px 12px; font: 600 1rem var(--f-body);
+  }
+  .swatches { display: flex; gap: 8px; }
+  .sw-dot { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; padding: 0; box-shadow: inset 0 0 0 2px var(--panel); }
+  .sw-dot[aria-checked="true"] { border-color: var(--ink); }
+  canvas.preview { display: block; width: 100%; aspect-ratio: 100 / 52; border-radius: 10px; }
+
+  .hours { display: grid; gap: 6px; }
+  .hours .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .hours .num { font: 700 .95rem var(--f-mono); }
+  .bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--gold); border-radius: 4px; transition: width .15s; }
+  .toast { min-height: 1.3em; font-size: .95rem; color: var(--gold); }
+  .toast.ok { color: var(--green); }
+
+  .field { display: grid; gap: 8px; min-width: 0; }
+  .field .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .label { font: 700 .74rem var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .field output { font: 700 .95rem var(--f-mono); }
+  .hint { font-size: .9rem; color: var(--dim); }
+
+  .seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .opt {
+    min-height: 54px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px;
+  }
+  .opt .n { font-weight: 700; }
+  .opt .c { font: 500 .72rem var(--f-mono); color: var(--dim); }
+  .opt.sel { border-color: var(--gold); background: rgba(255, 197, 39, .13); }
+  .opt.sel .c { color: var(--gold); }
+  .opt.locked { opacity: .4; }
+
+  .seg.shapes { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); }
+  .shape-name { font: 700 .95rem var(--f-mono); color: var(--gold); }
+  .readout { font: 500 .8rem var(--f-mono); color: var(--dim); }
+  .hint.warn { color: var(--gold); }
+  canvas.preview { touch-action: none; cursor: ns-resize; }
+  canvas.preview:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  input[type=range] { width: 100%; height: 36px; accent-color: var(--gold); margin: 0; }
+
+  .stepper { display: flex; align-items: center; gap: 12px; }
+  .stepper button {
+    width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel-2); font: 700 1.4rem var(--f-mono); line-height: 1;
+  }
+  .stepper .val { font: 700 1.3rem var(--f-mono); min-width: 1.6ch; text-align: center; }
+  .dots { display: flex; gap: 6px; margin-left: auto; }
+  .dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line); }
+  .dots i.on { background: #8b92a6; border-color: #b9bfd0; }
+  .dots i.clump { background: #5b5f6b; border-color: #8a8a8a; }
+
+  .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .switch-row .txt { display: grid; gap: 2px; min-width: 0; }
+  .sw { width: 56px; height: 32px; border-radius: 16px; border: 0; background: var(--line); position: relative; flex: 0 0 auto; }
+  .sw::after { content: ''; position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); transition: transform .15s; }
+  .sw[aria-checked="true"] { background: var(--gold); }
+  .sw[aria-checked="true"]::after { transform: translateX(24px); background: var(--gold-ink); }
+
+  .meters { display: grid; gap: 10px; }
+  .meter { display: grid; grid-template-columns: 5.4rem minmax(0, 1fr) 2.6rem; gap: 10px; align-items: center; }
+  .meter .bar > i { background: var(--pine); }
+  .meter.bad .bar > i { background: var(--red); }
+  .meter .v { font: 700 .8rem var(--f-mono); text-align: right; }
+  .note { background: var(--panel); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; }
+
+  .dock {
+    position: sticky; bottom: 0; z-index: 2;
+    padding: 14px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(to top, var(--bg) 72%, rgba(18, 21, 29, 0));
+  }
+  .primary {
+    width: 100%; min-height: 56px; border: 0; border-radius: 12px;
+    background: var(--gold); color: var(--gold-ink);
+    font: 400 1.15rem var(--f-display); letter-spacing: .02em;
+  }
+  .primary:disabled { opacity: .6; }
+  .primary:active { transform: translateY(1px); }
+  .ghost { min-height: 46px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: transparent; font-weight: 600; }
+
+  .hud { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: end; margin-bottom: 8px; }
+  .hud .name { font: 400 1.15rem/1.1 var(--f-display); overflow-wrap: anywhere; }
+  .stat { text-align: right; line-height: 1; }
+  .stat b { font: 700 1.9rem var(--f-mono); font-variant-numeric: tabular-nums; }
+  .stat small { font: 500 .72rem var(--f-mono); color: var(--dim); margin-left: 4px; }
+  .stat.spd b { font-size: 1.3rem; }
+  canvas.scene { display: block; width: 100%; aspect-ratio: 100 / 72; border-radius: 12px; background: #141826; }
+  #race .mini { margin-top: 8px; }
+  .raceCtl { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+  .results { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 14px; }
+  .results:focus { outline: none; }
+  .verdict { font: 400 1.4rem/1.1 var(--f-display); }
+  .verdict small { font: 700 .9rem var(--f-mono); color: var(--gold); margin-left: 6px; }
+  .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .row-r {
+    display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+    padding: 9px 10px; border-radius: 10px; background: var(--panel-2);
+  }
+  .row-r.me { background: #34304a; outline: 1px solid var(--gold); }
+  .row-r .pl { font: 400 1rem var(--f-display); }
+  .row-r .nm { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
+  .row-r .nm span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 auto; }
+  .row-r .tm { font: 700 .88rem var(--f-mono); font-variant-numeric: tabular-nums; }
+  .row-r .gp { font: 500 .78rem var(--f-mono); color: var(--dim); min-width: 4.6ch; text-align: right; font-variant-numeric: tabular-nums; }
+  .reportp { display: grid; gap: 8px; }
+  .reportp p { font-size: .98rem; }
+  .badge { display: inline-block; font: 700 .72rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; background: var(--gold); color: var(--gold-ink); border-radius: 6px; padding: 2px 8px; }
+
+  .final { display: grid; gap: 16px; }
+  .final .title { font: 400 2rem/1.05 var(--f-display); color: var(--gold); }
+  .final .score { font: 700 1rem var(--f-mono); }
+  .heatlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .heatlist li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; padding: 9px 10px; background: var(--panel); border-radius: 10px; align-items: center; }
+  .heatlist .tn { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .heatlist .pl { font: 400 .95rem var(--f-display); }
+  .heatlist .pt { font: 700 .85rem var(--f-mono); color: var(--dim); min-width: 3.6ch; text-align: right; }
+
+  @media (prefers-reduced-motion: reduce) { .bar > i, .sw::after { transition: none; } }
+</style>
+
+<main class="app">
+  <header class="top">
+    <h1>Gravity Cup</h1>
+    <p class="sub">Cut a 5-ounce pine car and race it down five big tracks. Gravity only, no motors.</p>
+    <ol class="pips" id="pips" aria-label="Heats"></ol>
+  </header>
+
+  <section id="garage" class="app" style="gap:18px" aria-label="Garage">
+    <div class="heat">
+      <p class="eyebrow" id="heatLabel">Heat 1 of 5</p>
+      <h2 id="heatName">Classic Ramp</h2>
+      <p class="tip" id="heatTip"></p>
+      <canvas id="miniGarage" class="mini" aria-label="Side profile of the track"></canvas>
+      <p class="meta" id="heatMeta"></p>
+    </div>
+
+    <div class="bench">
+      <div class="namerow">
+        <label class="label" for="carName">Car name and paint</label>
+        <input id="carName" maxlength="16" value="Splinter" autocomplete="off" spellcheck="false">
+        <div class="swatches" id="swatches" role="radiogroup" aria-label="Paint colour"></div>
+      </div>
+
+      <canvas id="preview" class="preview" tabindex="0" aria-label="Side profile of your car. Drag the gold dots, or focus here and use the arrow keys, to cut the block."></canvas>
+      <p class="hint">Drag the gold dots to cut the block. The shape sets drag, how much wood is left, and where the weight can go.</p>
+
+      <div class="field" role="group" aria-labelledby="lblShape">
+        <div class="row"><span class="label" id="lblShape">Shape</span><output class="shape-name" id="shapeName">Wedge</output></div>
+        <div class="seg shapes" id="segShape"></div>
+        <p class="readout" id="shapeOut"></p>
+      </div>
+
+      <div class="hours">
+        <div class="row"><span class="label">Bench hours</span><span class="num" id="hoursText"></span></div>
+        <div class="bar"><i id="hoursFill"></i></div>
+        <p class="toast" id="toast" role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="field">
+        <div class="row"><label class="label" for="com">Weight position</label><output id="comOut" for="com">1.00 in</output></div>
+        <input id="com" type="range" min="0.25" max="3" step="0.05" value="1">
+        <p class="hint" id="comHint"></p>
+      </div>
+
+      <div class="field">
+        <div class="row"><label class="label" for="wh">Weight height</label><output id="whOut" for="wh">Middle</output></div>
+        <input id="wh" type="range" min="0" max="1" step="0.05" value="0.5">
+        <p class="hint" id="whHint"></p>
+      </div>
+
+      <div class="field">
+        <div class="row"><span class="label" id="lblCoat">Graphite coats</span></div>
+        <div class="stepper">
+          <button type="button" id="coatMinus" aria-label="One less coat">&minus;</button>
+          <span class="val" id="coatVal" aria-live="polite">2</span>
+          <button type="button" id="coatPlus" aria-label="One more coat">+</button>
+          <span class="dots" id="coatDots" aria-hidden="true"></span>
+        </div>
+        <p class="hint">Half an hour a coat. Returns fade after the third, and past four it clumps.</p>
+      </div>
+
+      <div class="field" role="group" aria-labelledby="lblWheel">
+        <div class="row"><span class="label" id="lblWheel">Wheels and axles</span></div>
+        <div class="seg" id="segWheels"></div>
+      </div>
+
+      <div class="field" role="group" aria-labelledby="lblFin">
+        <div class="row"><span class="label" id="lblFin">Body finish</span></div>
+        <div class="seg" id="segFinish"></div>
+        <p class="hint">Sanding and polishing smooth the airflow over the wood. It only trims body drag.</p>
+      </div>
+
+      <div class="field">
+        <div class="row"><label class="label" for="align">Rail steering</label><output id="alignOut" for="align">20%</output></div>
+        <input id="align" type="range" min="0" max="1" step="0.05" value="0.2">
+        <p class="hint" id="alignHint"></p>
+      </div>
+
+      <div class="switch-row">
+        <div class="txt"><span class="label" id="lblTri">Three-wheeler</span><span class="hint">Raise one front wheel for less friction. Costs 1 hour and the car sometimes veers into the rail.</span></div>
+        <button type="button" class="sw" id="triSw" role="switch" aria-checked="false" aria-labelledby="lblTri"></button>
+      </div>
+    </div>
+
+    <div class="meters" id="meters" aria-label="Inspector's chart"></div>
+    <div class="note"><span class="eyebrow">Inspector</span><p id="inspector"></p></div>
+
+    <div class="dock"><button type="button" class="primary" id="goBtn">Weigh in and race</button></div>
+  </section>
+
+  <section id="race" hidden aria-label="Race">
+    <div class="hud">
+      <div><p class="eyebrow" id="raceLabel"></p><p class="name" id="raceName"></p></div>
+      <div class="stat"><b id="clock">0.000</b><small>s</small></div>
+      <div class="stat spd"><b id="mph">0.0</b><small>mph</small></div>
+    </div>
+    <canvas id="scene" class="scene" role="img" aria-label="Four cars racing down the track"></canvas>
+    <canvas id="miniRace" class="mini" aria-hidden="true"></canvas>
+    <div class="raceCtl">
+      <button type="button" class="ghost" id="speedBtn">Speed 1&times;</button>
+      <button type="button" class="ghost" id="viewBtn">Side view</button>
+      <button type="button" class="ghost" id="skipBtn">Skip to finish</button>
+    </div>
+    <div class="results" id="results" tabindex="-1" hidden aria-live="polite"></div>
+  </section>
+
+  <section id="final" class="final" hidden aria-label="Final standings"></section>
+</main>
+
+<script>
+// ===== Gravity Cup engine: pure physics, no DOM =====
+const G = 9.81;
+const M_G = 141.75;             // 5.00 oz in grams
+const M_CAR = M_G / 1000;       // kg
+const MU0 = 0.030;              // bare nail-axle rolling resistance
+const BUDGET = 8;               // bench hours
+
+// The block: 7 in long, 1.75 in wide, 1.25 in tall as it comes in the kit.
+// The side profile is 8 stations, 1 in apart from the rear (x = 0..7 in); height is measured up from the bottom.
+const CAR = { len: 7, axle: 1.25, width: 1.75, hMax: 1.25, hMin: 0.40, clear: 0.375, n: 8,
+              rho: 0.45, wheelsG: 14, wheelsX: 3.5, step: 0.05, tungstenLo: 0.35, tungstenHi: 6.65 };
+const IN3_TO_CM3 = 16.387;
+const DRAG_K = 2;               // game-scale drag boost
+const D_WHEELS = 0.0004;        // exposed wheels and axles
+const LAUNCH_H = 0.20, LAUNCH_LEN = 1.6;
+
+const SHAPES = {
+  wedge:    { id: 'wedge',    name: 'Wedge',    h: [1.25, 1.10, 0.95, 0.80, 0.70, 0.60, 0.50, 0.40] },
+  teardrop: { id: 'teardrop', name: 'Teardrop', h: [0.65, 0.95, 1.15, 1.25, 1.15, 0.95, 0.65, 0.40] },
+  slab:     { id: 'slab',     name: 'Slab',     h: [0.70, 0.70, 0.70, 0.70, 0.70, 0.70, 0.60, 0.45] },
+  board:    { id: 'board',    name: 'Board',    h: [0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40, 0.40] },
+  brick:    { id: 'brick',    name: 'Brick',    h: [1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25, 1.25] }
+};
+const FINISH = {
+  raw:      { id: 'raw',      name: 'Raw',      fm: 1.00, cost: 0 },
+  sanded:   { id: 'sanded',   name: 'Sanded',   fm: 0.94, cost: 0.5 },
+  polished: { id: 'polished', name: 'Polished', fm: 0.88, cost: 1.5 }
+};
+const WHEELS = {
+  stock:  { id: 'stock',  name: 'Stock',  mu: 1.00, k: 0.080, cost: 0 },
+  lathed: { id: 'lathed', name: 'Lathed', mu: 0.88, k: 0.050, cost: 2 },
+  mirror: { id: 'mirror', name: 'Mirror', mu: 0.76, k: 0.040, cost: 4 }
+};
+
+function clampN(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function snapHeight(h) { return Math.round(clampN(h, CAR.hMin, CAR.hMax) / CAR.step) * CAR.step; }
+function sameShape(a, b) { return a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 1e-6); }
+
+function grapFactor(n) {
+  const base = 0.55 + 0.45 * Math.exp(-1.1 * Math.min(n, 4));
+  return n <= 4 ? base : base + 0.05 * (n - 4);   // past 4 coats it clumps
+}
+
+// Everything the silhouette decides: wood left, where its centre sits, and how slippery it is.
+function shapeStats(h) {
+  const n = h.length;
+  let area = 0, mom = 0, hmax = 0, hmom = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const a = h[i], b = h[i + 1];
+    area += (a + b) / 2;
+    mom += i * (a + b) / 2 + a / 2 + (b - a) / 3;
+    hmom += (a * a + a * b + b * b) / 6;
+  }
+  for (let i = 0; i < n; i++) hmax = Math.max(hmax, h[i]);
+  let rough = 0;
+  for (let i = 1; i < n - 1; i++) rough += Math.abs(h[i - 1] - 2 * h[i] + h[i + 1]);
+  const fNose = h[n - 1] / hmax, fTail = h[0] / hmax;
+  const Cd = (0.20 + 0.50 * fNose + 0.22 * fTail) * (1 + 0.35 * clampN(rough / 2.0, 0, 1));
+  const A = hmax * 0.0254 * CAR.width * 0.0254;
+  const Dbody = DRAG_K * 0.6 * Cd * A;
+  const D = Dbody + D_WHEELS;
+  const woodG = area * CAR.width * IN3_TO_CM3 * CAR.rho;
+  const removed = 1 - area / ((n - 1) * CAR.hMax);
+  const cost = Math.round(10 * removed * 2) / 2;
+  return {
+    area, xw: mom / area, yw: CAR.clear + hmom / area, Dbody, hmax, fNose, fTail, rough, Cd, A, D, woodG, removed, cost,
+    tungstenG: M_G - CAR.wheelsG - woodG,
+    cMin: 0.4 + 0.6 * (1 - fNose)          // thin nose = front wheels unload sooner
+  };
+}
+
+// Where the centre of mass really ends up, given where you asked for it.
+function comFor(st, cTarget) {
+  const base = st.woodG * st.xw + CAR.wheelsG * CAR.wheelsX, mt = st.tungstenG;
+  const cAt = p => (base + mt * p) / M_G - CAR.axle;
+  const want = (M_G * (cTarget + CAR.axle) - base) / mt;
+  const p = clampN(want, CAR.tungstenLo, CAR.tungstenHi);
+  return { p, c: cAt(p), cLo: cAt(CAR.tungstenLo), cHi: cAt(CAR.tungstenHi) };
+}
+
+function heightAt(h, p) {
+  const u = clampN(p, 0, h.length - 1), i = Math.min(h.length - 2, Math.floor(u)), f = u - i;
+  return h[i] + (h[i + 1] - h[i]) * f;
+}
+// How high the centre of mass sits (inches above the track), given where the weight goes and how high in the body.
+function comHeight(st, shape, p, wh) {
+  const local = heightAt(shape, p);
+  const hc = 0.175 + wh * Math.max(0, local - 0.35);
+  const yT = CAR.clear + hc;
+  return { hc, yT, yCom: (st.woodG * st.yw + CAR.wheelsG * 0.6 + st.tungstenG * yT) / M_G };
+}
+function withDefaults(cfg) {
+  return Object.assign({ wh: 0.5, align: 0.2, finish: 'raw' }, cfg);
+}
+
+function buildCost(cfg) {
+  cfg = withDefaults(cfg);
+  return shapeStats(cfg.shape).cost + WHEELS[cfg.wheels].cost + FINISH[cfg.finish].cost + cfg.coats * 0.5 + (cfg.tri ? 1 : 0);
+}
+
+const SCRUB = 0.006, BOUNCE_RATE = 3, BOUNCE_LOSS = 0.985;
+function carParams(cfg) {
+  cfg = withDefaults(cfg);
+  const st = shapeStats(cfg.shape), w = WHEELS[cfg.wheels], com = comFor(st, cfg.c), fin = FINISH[cfg.finish];
+  const ch = comHeight(st, cfg.shape, com.p, cfg.wh);
+  const r = Math.max(0, (st.cMin - com.c) / st.cMin);
+  const hi = Math.max(0, (ch.yCom - 0.8) / 0.5);
+  const instab = 1 + 3 * r * r + 2.5 * hi * hi;
+  const muClean = MU0 * w.mu * grapFactor(cfg.coats) * (cfg.tri ? 0.84 : 1) + SCRUB * cfg.align * cfg.align;
+  const heightGain = 0.75 + 0.5 * clampN((ch.yCom - 0.55) / 0.55, 0, 1);
+  return {
+    mu: muClean * instab, muClean, k: w.k, D: st.Dbody * fin.fm + D_WHEELS, instab, r, hi, st, com, cAct: com.c,
+    yCom: ch.yCom, hc: ch.hc, bounceLambda: BOUNCE_RATE * (1 - cfg.align) * (1 - cfg.align),
+    hb: Math.max(0, LAUNCH_H * (1 - com.c / 3.2) * heightGain)      // launch bonus, metres of head
+  };
+}
+
+// ---------- tracks (about twice the size of a real 32 ft track) ----------
+function scalePts(pts, sx, sy) { return pts.map(p => [p[0] * sx, p[1] * sy]); }
+const TRACKS = [
+  { id: 'ramp', name: 'Classic Ramp', blurb: 'Steep ramp, long flat. Plain speed.',
+    finishX: 19.5, pts: scalePts([[0,1.25],[1.0,1.02],[2.0,0.60],[2.8,0.22],[3.4,0.08],[4.2,0.03],[6,0],[10.8,0]], 2.0, 2.0) },
+  { id: 'dip', name: 'Dip and Hill', blurb: 'Drops into a valley, then climbs a hill before the line.',
+    finishX: 21.0, pts: scalePts([[0,1.4],[0.9,1.15],[1.9,0.55],[2.7,0.12],[3.4,0.0],[4.3,0.22],[5.1,0.66],[5.7,0.95],[6.4,0.82],[7.0,0.40],[7.8,0.05],[9,0],[11.2,0]], 2.1, 2.2) },
+  { id: 'haul', name: 'Long Haul', blurb: 'Gentle slope, then a very long flat. Air drag decides it.',
+    finishX: 34.8, pts: scalePts([[0,1.0],[1.5,0.86],[3.2,0.62],[5.0,0.36],[6.8,0.15],[8.4,0.04],[10.5,0],[19.6,0]], 1.9, 2.0) },
+  { id: 'coaster', name: 'Roller Coaster', blurb: 'Two crests. Run out of energy and you roll back.',
+    finishX: 24.4, pts: scalePts([[0,1.5],[0.7,1.32],[1.6,0.72],[2.3,0.22],[2.9,0.02],[3.5,0.0],[4.2,0.22],[4.9,0.62],[5.5,0.95],[6.1,1.05],[6.8,0.82],[7.5,0.40],[8.1,0.1],[8.7,0.12],[9.3,0.38],[9.9,0.60],[10.5,0.52],[11.2,0.2],[12.0,0.03],[13.4,0]], 2.0, 2.1) },
+  { id: 'giant', name: 'Giant Roller', blurb: 'A huge drop and a huge hill. The finish sits near the top.',
+    finishX: 17.2, pts: scalePts([[0,2.3],[0.8,2.1],[1.8,1.35],[2.7,0.55],[3.4,0.12],[4.1,0.0],[4.9,0.12],[5.7,0.5],[6.5,1.0],[7.2,1.3],[7.9,1.5],[8.6,1.58],[9.4,1.45],[10.4,1.1],[11.5,0.5],[12.6,0.3]], 2.0, 2.1) }
+];
+
+function pchip(xs, ys) {
+  const n = xs.length, h = [], d = [], m = new Array(n);
+  for (let i = 0; i < n - 1; i++) { h[i] = xs[i+1] - xs[i]; d[i] = (ys[i+1] - ys[i]) / h[i]; }
+  m[0] = d[0]; m[n-1] = d[n-2];
+  for (let i = 1; i < n - 1; i++) {
+    if (d[i-1] * d[i] <= 0) m[i] = 0;
+    else {
+      const w1 = 2 * h[i] + h[i-1], w2 = h[i] + 2 * h[i-1];
+      m[i] = (w1 + w2) / (w1 / d[i-1] + w2 / d[i]);
+    }
+  }
+  return function (x) {
+    let i = 0;
+    while (i < n - 2 && x > xs[i+1]) i++;
+    const t = (x - xs[i]) / h[i], t2 = t * t, t3 = t2 * t;
+    return (2*t3 - 3*t2 + 1) * ys[i] + (t3 - 2*t2 + t) * h[i] * m[i] +
+           (-2*t3 + 3*t2) * ys[i+1] + (t3 - t2) * h[i] * m[i+1];
+  };
+}
+
+function buildTrack(def) {
+  const xs = def.pts.map(p => p[0]), ys = def.pts.map(p => p[1]);
+  const f = pchip(xs, ys);
+  const dx = 0.004, n = Math.floor((xs[xs.length-1] - xs[0]) / dx);
+  const DX = new Float64Array(n + 1), DY = new Float64Array(n + 1), S = new Float64Array(n + 1);
+  for (let i = 0; i <= n; i++) {
+    DX[i] = i * dx; DY[i] = f(i * dx);
+    if (i > 0) S[i] = S[i-1] + Math.hypot(dx, DY[i] - DY[i-1]);
+  }
+  const ds = 0.01, N = Math.floor(S[n] / ds);
+  const X = new Float32Array(N + 1), Y = new Float32Array(N + 1);
+  const TX = new Float32Array(N + 1), TY = new Float32Array(N + 1);
+  let j = 0;
+  for (let k = 0; k <= N; k++) {
+    const s = k * ds;
+    while (j < n - 1 && S[j+1] < s) j++;
+    const fr = (s - S[j]) / (S[j+1] - S[j]);
+    X[k] = DX[j] + fr * (DX[j+1] - DX[j]);
+    Y[k] = DY[j] + fr * (DY[j+1] - DY[j]);
+  }
+  for (let k = 0; k <= N; k++) {
+    const a = Math.max(0, k - 3), b = Math.min(N, k + 3);
+    const tx = X[b] - X[a], ty = Y[b] - Y[a], L = Math.hypot(tx, ty) || 1;
+    TX[k] = tx / L; TY[k] = ty / L;
+  }
+  let finishS = N * ds;
+  for (let k = 0; k <= N; k++) if (X[k] >= def.finishX) { finishS = k * ds; break; }
+  const track = { def, N, ds, total: N * ds, X, Y, TX, TY, finishS };
+  track.at = function (s, out) {
+    out = out || {};
+    s = Math.max(0, Math.min(track.total - 1e-6, s));
+    const q = s / ds, i = Math.floor(q), fr = q - i;
+    out.x = X[i] + fr * (X[i+1] - X[i]);
+    out.y = Y[i] + fr * (Y[i+1] - Y[i]);
+    out.tx = TX[i] + fr * (TX[i+1] - TX[i]);
+    out.ty = TY[i] + fr * (TY[i+1] - TY[i]);
+    return out;
+  };
+  return track;
+}
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// entrants: [{name,color,cfg,isPlayer,lane,sloppy}]
+function simulate(track, entrants, seed) {
+  const DT = 1 / 240, MAXT = 45, rng = mulberry32(seed);
+  const cars = entrants.map(e => {
+    const p = carParams(e.cfg);
+    p.mu *= (1 + (e.sloppy || 0)) * (1 + (rng() - 0.5) * 0.14);
+    const veers = e.cfg.tri && rng() < 0.15;
+    const bounceAt = [];
+    { const L = Math.exp(-p.bounceLambda); let q = 1, n = -1; do { n++; q *= rng(); } while (q > L);
+      for (let i = 0; i < n; i++) bounceAt.push(1.5 + rng() * Math.max(1, 0.6 * track.finishS - 1.5));
+      bounceAt.sort((x, y) => x - y); }
+    return {
+      bounceAt, bi: 0, bounced: 0,
+      e, p, s: 0, v: 0, S: [], V: [], rest: 0, finished: false, finishT: null,
+      stalled: false, maxS: 0, vmax: 0, eRoll: 0, eDrag: 0,
+      veers, veerAt: 1.0 + rng() * 3.0, veered: false, rolledBack: false, peakS: 0
+    };
+  });
+  const tmp = {};
+  let t = 0, firstFinish = null, lastEvent = 0;
+  for (;;) {
+    for (const c of cars) {
+      if (!c.stalled) {
+        const { mu, k, D, hb } = c.p;
+        track.at(c.s, tmp);
+        const slope = -tmp.ty, cosT = Math.abs(tmp.tx);
+        let ag = G * slope;
+        if (c.s < LAUNCH_LEN) ag += G * hb / LAUNCH_LEN;
+        ag /= (1 + k);
+        const fr = (mu * G * cosT + D * c.v * c.v / M_CAR) / (1 + k);
+        let a;
+        if (Math.abs(c.v) < 1e-3) {
+          const fr0 = mu * G * cosT / (1 + k);
+          if (Math.abs(ag) <= fr0 * 1.25) { c.v = 0; a = 0; }
+          else a = ag - Math.sign(ag) * fr0;
+        } else a = ag - Math.sign(c.v) * fr;
+        let vn = c.v + a * DT;
+        if (c.v !== 0 && vn * c.v < 0 && Math.abs(ag) <= fr) vn = 0;
+        const dsMove = (c.v + vn) * 0.5 * DT;
+        c.eRoll += mu * G * cosT * Math.abs(dsMove);
+        c.eDrag += D * c.v * c.v / M_CAR * Math.abs(dsMove);
+        c.v = vn;
+        c.s += dsMove;
+        if (c.s <= 0) { c.s = 0; if (c.v < 0) c.v = 0; }
+        if (c.s >= track.total - 0.02) { c.s = track.total - 0.02; c.v = 0; }
+        if (c.veers && !c.veered && c.s > c.veerAt) { c.veered = true; c.v *= 0.95; }
+        while (c.bi < c.bounceAt.length && c.s > c.bounceAt[c.bi]) { c.v *= BOUNCE_LOSS; c.bi++; c.bounced++; }
+        if (c.s > c.peakS) c.peakS = c.s;
+        if (c.v < -0.05 && c.peakS > 3) c.rolledBack = true;
+        if (c.s > c.maxS) c.maxS = c.s;
+        if (c.v > c.vmax) c.vmax = c.v;
+        if (!c.finished && c.s >= track.finishS) {
+          const prev = c.s - dsMove, fr2 = (track.finishS - prev) / (dsMove || 1e-9);
+          c.finished = true; c.finishT = t + fr2 * DT;
+          if (firstFinish === null) firstFinish = c.finishT;
+          lastEvent = t;
+        }
+        if (!c.finished && t > 1.0) {
+          if (Math.abs(c.v) < 0.05) c.rest += DT; else c.rest = 0;
+          if (c.rest > 1.2) { c.stalled = true; c.v = 0; lastEvent = t; }
+        }
+      }
+      c.S.push(c.s); c.V.push(c.v);
+    }
+    t += DT;
+    const allSettled = cars.every(c => c.finished || c.stalled);
+    if (allSettled && t - lastEvent > 1.0) break;
+    if (firstFinish !== null && t - firstFinish > 8) break;
+    if (t >= MAXT) break;
+  }
+  const frames = cars[0].S.length;
+  for (const c of cars) { c.S = Float32Array.from(c.S); c.V = Float32Array.from(c.V); }
+  return { dt: DT, frames, tEnd: t, cars, firstFinish };
+}
+
+function rankCars(sim) {
+  const idx = sim.cars.map((c, i) => i);
+  idx.sort((a, b) => {
+    const A = sim.cars[a], B = sim.cars[b];
+    if (A.finished && B.finished) return A.finishT - B.finishT;
+    if (A.finished) return -1;
+    if (B.finished) return 1;
+    return B.maxS - A.maxS;
+  });
+  return idx;
+}
+
+const AI_BASE = [
+  { name: "Pine Bomber", cfg: { shape: SHAPES.teardrop.h.slice(), wheels: 'lathed', coats: 3, c: 0.9, tri: false, wh: 0.6, align: 0.5, finish: 'sanded' } },
+  { name: "Lil' Rocket", cfg: { shape: SHAPES.wedge.h.slice(),    wheels: 'lathed', coats: 3, c: 1.0, tri: false, wh: 0.6, align: 0.5, finish: 'sanded' } },
+  { name: "Block Party", cfg: { shape: SHAPES.slab.h.slice(),     wheels: 'lathed', coats: 3, c: 0.8, tri: false, wh: 0.6, align: 0.5, finish: 'sanded' } }
+];
+const AI_SLOPPY = [0.40, 0.28, 0.17, 0.11, 0.05];   // heat 1..5, extra rolling resistance for the AI
+
+
+// ===== Gravity Cup canvas drawing: no DOM access, ctx passed in =====
+// Relies on the engine globals CAR, shapeStats, comFor (same script in the page).
+const FT = 0.3048;                       // metres per foot
+const C = {
+  bg: '#12151d', panel: '#1b2030', line: '#313a52', ink: '#f1ece0', dim: '#a2a9bd',
+  pine: '#d9a566', pineDk: '#9c6a2b', gold: '#ffc527', red: '#ea4b3c',
+  floor: '#241e1b', floorLine: '#34292a', tape: '#f0c648', tapeInk: '#1b1b1b'
+};
+const LANE_PINE = ['#e3b073', '#cf9d5d', '#b6884e', '#9c7441'];
+const LANE_DK   = ['#9c6a2b', '#8a5c25', '#76501f', '#634419'];
+const FONT_DISPLAY = '"Alfa Slab One", Georgia, serif';
+const FONT_MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
+const BUNTING = ['#ea4b3c', '#ffc527', '#3f78ff', '#47c98a'];
+
+function yAtX(track, x) {
+  const X = track.X;
+  let lo = 0, hi = track.N;
+  if (x <= X[0]) return track.Y[0];
+  if (x >= X[hi]) return track.Y[hi];
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (X[m] <= x) lo = m; else hi = m; }
+  const f = (x - X[lo]) / ((X[hi] - X[lo]) || 1);
+  return track.Y[lo] + f * (track.Y[hi] - track.Y[lo]);
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+// ---------- car sprite (origin: centre of car, wheels' bottom on y = 0, +x is forward) ----------
+function carBot(Lc) { return -(CAR.clear / CAR.len) * Lc; }
+
+function bodyPoly(shape, Lc) {
+  const inch = Lc / CAR.len, bot = carBot(Lc);
+  const pts = [[-Lc / 2, bot]];
+  shape.forEach((hh, i) => pts.push([-Lc / 2 + i * inch, bot - hh * inch]));
+  pts.push([Lc / 2, bot]);
+  return pts;
+}
+function bodyTopY(shape, Lc, x) {
+  const inch = Lc / CAR.len;
+  const u = Math.max(0, Math.min(CAR.len, (x + Lc / 2) / inch));
+  const i = Math.min(shape.length - 2, Math.floor(u)), f = u - i;
+  return carBot(Lc) - (shape[i] + (shape[i + 1] - shape[i]) * f) * inch;
+}
+function pathPoly(ctx, pts) {
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+  ctx.closePath();
+}
+
+function drawCar(ctx, Lc, cfg, color, o) {
+  o = o || {};
+  const wr = Lc * 0.085, bot = carBot(Lc), ax = Lc / 2 - Lc * (CAR.axle / CAR.len);
+  const shape = cfg.shape, pts = bodyPoly(shape, Lc);
+  let hmax = 0; shape.forEach(v => { hmax = Math.max(hmax, v); });
+  const topMost = bot - hmax * (Lc / CAR.len);
+  ctx.save();
+  pathPoly(ctx, pts);
+  ctx.fillStyle = color; ctx.fill();
+  ctx.save(); ctx.clip();
+  const g = ctx.createLinearGradient(0, topMost, 0, bot);
+  g.addColorStop(0, 'rgba(255,255,255,0.40)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.30)');
+  ctx.fillStyle = g; ctx.fillRect(-Lc / 2, topMost - 1, Lc, bot - topMost + 2);
+  ctx.fillStyle = C.pine; ctx.fillRect(-Lc / 2, bot - Lc * 0.014, Lc, Lc * 0.02);   // bare pine underside
+  ctx.restore();
+  pathPoly(ctx, pts);
+  ctx.lineWidth = Math.max(1, Lc * 0.008); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.stroke();
+  // number roundel
+  const rx = -Lc * 0.06, h = bot - bodyTopY(shape, Lc, rx);
+  const rr = Math.min(Lc * 0.05, h * 0.36), ry = bot - h * 0.5 - Lc * 0.004;
+  if (rr > 1.6) {
+    ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fill();
+    if (o.num != null && rr > 8) {
+      ctx.fillStyle = '#12151d'; ctx.font = '700 ' + Math.round(rr * 1.35) + 'px ' + FONT_MONO;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(o.num), rx, ry + rr * 0.06);
+    }
+  }
+  if (o.beforeWheels) o.beforeWheels(ctx);
+  // wheels
+  [-ax, ax].forEach((x, i) => {
+    const lift = (cfg.tri && i === 1) ? Lc * 0.028 : 0;
+    const cy = -wr - lift;
+    ctx.beginPath(); ctx.arc(x, cy, wr, 0, Math.PI * 2);
+    ctx.fillStyle = '#171a22'; ctx.fill();
+    ctx.lineWidth = Math.max(1, wr * 0.22); ctx.strokeStyle = '#05060a'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, cy, wr * 0.38, 0, Math.PI * 2); ctx.fillStyle = '#c9ceda'; ctx.fill();
+    const a = o.rot || 0;
+    ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + Math.cos(a) * wr * 0.9, cy + Math.sin(a) * wr * 0.9);
+    ctx.lineWidth = Math.max(1, wr * 0.2); ctx.strokeStyle = '#8b92a6'; ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// ---------- garage preview and shape editor ----------
+function previewLayout(W, H) {
+  const Lc = W * 0.84;
+  return { Lc, inch: Lc / CAR.len, cx: W / 2, baseY: H * 0.66 };
+}
+
+// o: { active: index of the handle being dragged or selected, or -1 }
+function drawPreview(ctx, W, H, cfg, color, num, o) {
+  o = o || {};
+  const L = previewLayout(W, H), Lc = L.Lc, inch = L.inch, baseY = L.baseY, cx = L.cx;
+  const st = shapeStats(cfg.shape), com = comFor(st, cfg.c), bot = carBot(Lc);
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#171c2b'; ctx.fillRect(0, 0, W, baseY);
+  const bg = ctx.createLinearGradient(0, baseY, 0, H);
+  bg.addColorStop(0, '#e3b073'); bg.addColorStop(1, '#b8844a');
+  ctx.fillStyle = bg; ctx.fillRect(0, baseY, W, H - baseY);
+  ctx.strokeStyle = 'rgba(110,70,20,0.28)'; ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    const y = baseY + 6 + i * ((H - baseY - 8) / 6);
+    ctx.beginPath(); ctx.moveTo(0, y);
+    ctx.bezierCurveTo(W * 0.3, y - 3, W * 0.6, y + 4, W, y - 1); ctx.stroke();
+  }
+  ctx.fillStyle = '#7a4f1c'; ctx.fillRect(0, baseY, W, 2);
+
+  ctx.save(); ctx.translate(cx, baseY);
+  // the uncut block, for reference
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(241,236,224,0.30)'; ctx.lineWidth = 1;
+  ctx.strokeRect(-Lc / 2 + 0.5, bot - CAR.hMax * inch, Lc, CAR.hMax * inch);
+  ctx.setLineDash([]);
+
+  const rearAx = -Lc / 2 + CAR.axle * inch;
+  const wx = -Lc / 2 + com.p * inch;
+  drawCar(ctx, Lc, cfg, color, { num, beforeWheels: function (c2) {
+    // tungsten, drawn as an x-ray inside the body
+    c2.save();
+    pathPoly(c2, bodyPoly(cfg.shape, Lc)); c2.clip();
+    const ch = comHeight(st, cfg.shape, com.p, cfg.wh == null ? 0.5 : cfg.wh);
+    const bh = Math.min(0.5, 0.2 + st.tungstenG / 150) * inch;
+    const yc = bot - ch.hc * inch, y0 = yc - bh / 2;
+    const half = inch * (0.28 + st.tungstenG / 260);
+    const wg = c2.createLinearGradient(0, y0, 0, y0 + bh);
+    wg.addColorStop(0, 'rgba(235,240,250,0.95)'); wg.addColorStop(1, 'rgba(120,130,150,0.95)');
+    c2.fillStyle = wg; c2.fillRect(wx - half, y0, half * 2, bh);
+    c2.setLineDash([3, 2]); c2.strokeStyle = '#12151d'; c2.lineWidth = 1;
+    c2.strokeRect(wx - half, y0, half * 2, bh);
+    c2.restore();
+  } });
+
+  // ruler measured from the rear axle
+  const ry = 18, xr = c => rearAx + c * inch;
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(234,75,60,0.6)';
+  ctx.fillRect(rearAx, ry - 9, xr(Math.min(st.cMin, 4.5)) - rearAx, 9);
+  ctx.strokeStyle = '#3a2810'; ctx.fillStyle = '#3a2810'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(rearAx, ry); ctx.lineTo(xr(4.5), ry); ctx.stroke();
+  ctx.font = '600 10px ' + FONT_MONO; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let q = 0; q <= 18; q++) {
+    const c = q * 0.25, x = xr(c);
+    const len = q % 4 === 0 ? 11 : (q % 2 === 0 ? 7 : 4);
+    ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(x, ry + len); ctx.stroke();
+    if (q % 4 === 0) ctx.fillText(String(c), x, ry + 13);
+  }
+  ctx.textAlign = 'left'; ctx.font = '600 9px ' + FONT_MONO; ctx.fillStyle = '#7a1d14';
+  ctx.fillText('wheels unload', rearAx + 2, ry + 28);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#3a2810';
+  ctx.fillText('in from rear axle', xr(4.5) + 2, ry + 28);
+
+  // where the weight really lands (solid) and where you asked for it (hollow, if different)
+  const comX = xr(com.c);
+  ctx.setLineDash([2, 3]); ctx.strokeStyle = '#12151d';
+  ctx.beginPath(); ctx.moveTo(comX, bot); ctx.lineTo(comX, ry - 3); ctx.stroke();
+  ctx.setLineDash([]);
+  if (Math.abs(cfg.c - com.c) > 0.03 && cfg.c >= 0 && cfg.c <= 4.5) {
+    const tx = xr(cfg.c);
+    ctx.beginPath(); ctx.moveTo(tx, ry); ctx.lineTo(tx - 5, ry - 9); ctx.lineTo(tx + 5, ry - 9); ctx.closePath();
+    ctx.strokeStyle = '#12151d'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(comX, ry); ctx.lineTo(comX - 6, ry - 11); ctx.lineTo(comX + 6, ry - 11); ctx.closePath();
+  ctx.fillStyle = C.gold; ctx.fill(); ctx.strokeStyle = '#12151d'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // shape handles
+  cfg.shape.forEach((hh, i) => {
+    const x = -Lc / 2 + i * inch, y = bot - hh * inch, on = i === o.active;
+    if (on) {
+      ctx.setLineDash([2, 3]); ctx.strokeStyle = 'rgba(255,197,39,0.6)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, bot); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.beginPath(); ctx.arc(x, y, on ? 10 : 7.5, 0, Math.PI * 2);
+    ctx.fillStyle = C.gold; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#12151d'; ctx.stroke();
+    if (on) {
+      ctx.font = '700 10px ' + FONT_MONO; ctx.fillStyle = C.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(hh.toFixed(2) + ' in', x, y - 13);
+    }
+  });
+  ctx.restore();
+
+  // live scale readout on the bench
+  const oz = g => (g / 28.35).toFixed(2), py = 8, px = 10;
+  const wood = st.woodG, tung = st.tungstenG, wheels = CAR.wheelsG;
+  const rows = [['Wood', wood, '#d9a566'], ['Wheels', wheels, '#a2a9bd'], ['Tungsten', tung, '#f1ece0']];
+  ctx.font = '600 10px ' + FONT_MONO; ctx.textBaseline = 'top';
+  rows.forEach((r, i) => {
+    const y = py + i * 12;
+    ctx.textAlign = 'left'; ctx.fillStyle = r[2]; ctx.fillText(r[0], px, y);
+    ctx.textAlign = 'right'; ctx.fillText(oz(r[1]) + ' oz', px + 96, y);
+  });
+    // bar split of the 5 oz
+  const bw = 96, tot = wood + wheels + tung;
+  let bx = px; [['#b9824a', wood], ['#6d6f78', wheels], ['#e6ebf5', tung]].forEach(a => {
+    const w = bw * a[1] / tot; ctx.fillStyle = a[0]; ctx.fillRect(bx, py + 38, w, 4); bx += w;
+  });
+  const lw = 104, lh = 34, lx = W - lw - 10, ly = py;
+  ctx.fillStyle = '#10130c'; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(lx, ly, lw, lh, 6) : ctx.rect(lx, ly, lw, lh); ctx.fill();
+  ctx.strokeStyle = '#313a52'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#9cff8a'; ctx.font = '700 22px ' + FONT_MONO; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText(oz(tot), lx + lw - 30, ly + lh / 2 + 1);
+  ctx.font = '600 11px ' + FONT_MONO; ctx.textAlign = 'left'; ctx.fillText('oz', lx + lw - 26, ly + lh / 2 + 4);
+}
+
+// ---------- track profile strip ----------
+function drawMini(ctx, W, H, track, dots) {
+  ctx.clearRect(0, 0, W, H);
+  const padL = 12, padR = 12, padT = 8, padB = 12;
+  const x0 = track.X[0], x1 = track.X[track.N];
+  let ymax = 0; for (let i = 0; i <= track.N; i += 5) ymax = Math.max(ymax, track.Y[i]);
+  const sx = (W - padL - padR) / (x1 - x0);
+  const sy = Math.min((H - padT - padB) / ymax, sx * 2.4);
+  const px = x => padL + (x - x0) * sx, py = y => H - padB - y * sy;
+  ctx.beginPath(); ctx.moveTo(px(x0), py(0));
+  for (let i = 0; i <= track.N; i += 4) ctx.lineTo(px(track.X[i]), py(track.Y[i]));
+  ctx.lineTo(px(x1), py(0)); ctx.closePath();
+  ctx.fillStyle = 'rgba(217,165,102,0.12)'; ctx.fill();
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, py(0) + 0.5); ctx.lineTo(W - padR, py(0) + 0.5); ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i <= track.N; i += 4) { const x = px(track.X[i]), y = py(track.Y[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.strokeStyle = C.pine; ctx.stroke();
+  const fp = track.at(track.finishS), fx = px(fp.x), fy = py(fp.y);
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx, fy - 14); ctx.stroke();
+  ctx.fillStyle = C.ink; ctx.fillRect(fx, fy - 14, 7, 3.5); ctx.fillStyle = C.bg; ctx.fillRect(fx + 3.5, fy - 14, 3.5, 3.5); ctx.fillRect(fx, fy - 10.5, 3.5, 3.5);
+  ctx.fillStyle = C.ink; ctx.fillRect(fx + 3.5, fy - 10.5, 3.5, 3.5);
+  const sp = track.at(0);
+  ctx.beginPath(); ctx.arc(px(sp.x), py(sp.y) - 1, 3, 0, Math.PI * 2); ctx.fillStyle = C.red; ctx.fill();
+  if (dots) dots.forEach(d => {
+    const p = track.at(d.s), x = px(p.x), y = py(p.y) - 3;
+    ctx.beginPath(); ctx.arc(x, y, d.player ? 4.6 : 3.6, 0, Math.PI * 2);
+    ctx.fillStyle = d.color; ctx.fill();
+    ctx.lineWidth = d.player ? 2 : 1; ctx.strokeStyle = d.player ? C.ink : 'rgba(0,0,0,0.55)'; ctx.stroke();
+  });
+}
+
+// ---------- race scene ----------
+// S: { track, sim, t, cam:{x,y}, ents:[{color,cfg,lane,name,isPlayer,r}], badges:[text|null], flash:0..1, reduce:boolean }
+const VIEW_W = 6.0;     // metres of track on screen
+function drawScene(ctx, W, H, S) {
+  const { track, sim, t, cam, ents } = S;
+  const scale = W / VIEW_W, halfView = VIEW_W / 2;
+  const sx = x => W / 2 + (x - cam.x) * scale;
+  const tilt = S.view !== 'side';
+  const laneDy = tilt ? W * 0.09 : W * 0.042;
+  const Lc = W * 0.15, wheelRm = (Lc * 0.085) / scale;
+  const Wc = Lc * 0.26, hw = Wc * 0.5 + 3;
+  const sy = (y, L) => H * 0.66 - (y - cam.y) * scale - L * laneDy;
+  const trackEnd = track.X[track.N];
+
+  const wall = ctx.createLinearGradient(0, 0, 0, H);
+  wall.addColorStop(0, '#141826'); wall.addColorStop(1, '#1d2336');
+  ctx.fillStyle = wall; ctx.fillRect(0, 0, W, H);
+  // bunting drifts slowly behind the track
+  const par = cam.x * scale * 0.3;
+  const bp = -(par % 38);
+  ctx.strokeStyle = 'rgba(241,236,224,0.25)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, 18); ctx.lineTo(W, 18); ctx.stroke();
+  for (let px = bp - 38; px < W + 40; px += 38) {
+    const k = Math.round((px - bp) / 38) + Math.floor(par / 38);
+    ctx.fillStyle = BUNTING[((k % 4) + 4) % 4]; ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(px, 18); ctx.lineTo(px + 24, 18); ctx.lineTo(px + 12, 42); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // floor and tape measure
+  const floorY = sy(-0.42, 0);
+  if (floorY < H) {
+    const fy0 = Math.max(0, floorY);
+    ctx.fillStyle = C.floor; ctx.fillRect(0, fy0, W, H - fy0);
+    ctx.strokeStyle = C.floorLine; ctx.lineWidth = 1;
+    const bw = scale * 0.55;
+    for (let x = -((cam.x * scale) % bw); x < W; x += bw) {
+      ctx.beginPath(); ctx.moveTo(x, floorY); ctx.lineTo(x - 12, H); ctx.stroke();
+    }
+    ctx.fillStyle = '#3d3029'; ctx.fillRect(0, floorY, W, 2);
+    const ty = floorY + 8;
+    if (ty + 24 < H) {
+      ctx.fillStyle = C.tape; ctx.fillRect(0, ty, W, 22);
+      ctx.fillStyle = C.tapeInk; ctx.strokeStyle = C.tapeInk; ctx.lineWidth = 1;
+      ctx.font = '700 10px ' + FONT_MONO; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const n0 = Math.floor((cam.x - halfView) / FT), n1 = Math.ceil((cam.x + halfView) / FT);
+      for (let n = Math.max(0, n0); n <= n1; n++) {
+        const x = sx(n * FT) + 0.5, long = n % 5 === 0;
+        ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x, ty + (long ? 9 : 5)); ctx.stroke();
+        if (long && n % 10 === 0) ctx.fillText(String(n), x, ty + 10);
+      }
+    }
+  }
+
+  // supports under the front lane
+  ctx.strokeStyle = '#6e4a1f'; ctx.lineWidth = 4;
+  const sp = 2.0, k0 = Math.max(0, Math.floor((cam.x - halfView - 0.5) / sp));
+  for (let k = k0; k * sp <= cam.x + halfView + 0.5 && k * sp <= trackEnd; k++) {
+    const x = k * sp, y = sy(yAtX(track, x), 0) + (tilt ? hw + 6 : 3);
+    if (floorY > y) { ctx.beginPath(); ctx.moveTo(sx(x), y); ctx.lineTo(sx(x), floorY); ctx.stroke(); }
+  }
+
+  const xs = [], ys = [];
+  const xa = Math.max(0, cam.x - halfView - 0.3), xb = Math.min(trackEnd, cam.x + halfView + 0.3);
+  for (let x = xa; x <= xb + 1e-6; x += 0.05) { xs.push(x); ys.push(yAtX(track, x)); }
+  const fp = track.at(track.finishS), yF = yAtX(track, fp.x);
+  const laneCar = [null, null, null, null];
+  ents.forEach((e, i) => { laneCar[e.lane] = i; });
+
+  const gateOpen = Math.max(0, Math.min(1, t / 0.14));
+  const frameIdx = Math.max(0, Math.min(sim.frames - 1, Math.floor(Math.max(0, t) / sim.dt)));
+
+  // finish pole behind the back lane
+  {
+    const px = sx(fp.x), by = sy(yF, 3) + 2, ph = W * 0.26;
+    ctx.strokeStyle = '#d8dce8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(px, by); ctx.lineTo(px, by - ph); ctx.stroke();
+    const cw = 6;
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) {
+      ctx.fillStyle = (r + c) % 2 ? '#12151d' : '#f1ece0';
+      ctx.fillRect(px + c * cw, by - ph + r * cw, cw, cw);
+    }
+  }
+
+  for (let L = 3; L >= 0; L--) {
+    if (tilt) {
+      const edge = (off, rev) => { const o = rev ? xs.length - 1 : 0; for (let k = 0; k < xs.length; k++) { const i = rev ? xs.length - 1 - k : k; ctx.lineTo(sx(xs[i]), sy(ys[i], L) + off); } };
+      ctx.beginPath(); ctx.moveTo(sx(xs[0]), sy(ys[0], L) + hw); edge(hw, false); edge(hw + 6, true); ctx.closePath();
+      ctx.fillStyle = LANE_DK[L]; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx(xs[0]), sy(ys[0], L) - hw); edge(-hw, false); edge(hw, true); ctx.closePath();
+      ctx.fillStyle = LANE_PINE[L]; ctx.fill();
+      ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(110,70,20,0.28)';
+      [-0.55, -0.2, 0.35, 0.7].forEach(f => { ctx.beginPath(); xs.forEach((x, i) => i ? ctx.lineTo(sx(x), sy(ys[i], L) + f * hw) : ctx.moveTo(sx(x), sy(ys[i], L) + f * hw)); ctx.stroke(); });
+      ctx.lineJoin = 'round';
+      ctx.beginPath(); xs.forEach((x, i) => i ? ctx.lineTo(sx(x), sy(ys[i], L)) : ctx.moveTo(sx(x), sy(ys[i], L)));
+      ctx.lineWidth = 3; ctx.strokeStyle = LANE_DK[L]; ctx.stroke();
+      ctx.save(); ctx.translate(0, -1.2); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(255,240,210,0.55)'; ctx.stroke(); ctx.restore();
+    } else {
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath(); xs.forEach((x, i) => i ? ctx.lineTo(sx(x), sy(ys[i], L)) : ctx.moveTo(sx(x), sy(ys[i], L)));
+      ctx.lineWidth = 7; ctx.strokeStyle = LANE_DK[L]; ctx.stroke();
+      ctx.save(); ctx.translate(0, -1);
+      ctx.beginPath(); xs.forEach((x, i) => i ? ctx.lineTo(sx(x), sy(ys[i], L)) : ctx.moveTo(sx(x), sy(ys[i], L)));
+      ctx.lineWidth = 4; ctx.strokeStyle = LANE_PINE[L]; ctx.stroke();
+      ctx.restore();
+      ctx.lineCap = 'butt';
+    }
+    {
+      const px = sx(fp.x), py = sy(yF, L) - 2;
+      if (tilt) {
+        const n = 4, ch = (hw * 2) / n, y0 = sy(yF, L) - hw;
+        for (let q = 0; q < n; q++) { ctx.fillStyle = q % 2 ? '#12151d' : '#f1ece0'; ctx.fillRect(px - 2.5, y0 + q * ch, 5, ch); }
+      } else {
+        ctx.fillStyle = '#f1ece0'; ctx.fillRect(px - 2.5, py - 5, 5, 5);
+        ctx.fillStyle = '#12151d'; ctx.fillRect(px - 2.5, py, 5, 5);
+      }
+    }
+    {
+      const gx = (Lc / 2) / scale + 0.06, px = sx(gx), py = sy(yAtX(track, gx), L) - (tilt ? hw - 1 : 2.5);
+      if (px > -20 && px < W + 20) {
+        ctx.save(); ctx.translate(px, py); ctx.rotate(gateOpen * 1.45);
+        ctx.fillStyle = C.red; ctx.fillRect(-1.5, -13, 3, 13); ctx.restore();
+      }
+    }
+    const i = laneCar[L];
+    if (i != null) {
+      const car = sim.cars[i], s = car.S[frameIdx], p = track.at(s), r = ents[i].r || 0;
+      let ang = Math.atan2(-p.ty, p.tx), wob = 0, jit = 0;
+      if (!S.reduce && r > 0.02 && Math.abs(car.V[frameIdx]) > 0.3) {
+        wob = Math.sin(t * 46 + i) * Math.min(0.09, r * 0.12); jit = Math.abs(Math.sin(t * 31 + i)) * r * 1.2;
+      }
+      const cxp = sx(p.x), cyp = sy(p.y, L) - (tilt ? -Wc * 0.5 + 1 : 3.5) - jit;
+      if (cxp > -Lc && cxp < W + Lc) {
+        ctx.save(); ctx.translate(cxp, cyp); ctx.rotate(ang + wob);
+        if (tilt) {
+          const th = ang + wob, ex = -Wc * Math.sin(th), ey = -Wc * Math.cos(th);
+          const cfg = ents[i].cfg, wr = Lc * 0.085, axl = Lc / 2 - Lc * (CAR.axle / CAR.len);
+          // shadow on the lane
+          ctx.fillStyle = 'rgba(40,20,0,0.28)';
+          ctx.beginPath(); ctx.moveTo(-Lc / 2, 0); ctx.lineTo(Lc / 2, 0); ctx.lineTo(Lc / 2 + ex, ey); ctx.lineTo(-Lc / 2 + ex, ey); ctx.closePath(); ctx.fill();
+          // far wheels
+          [-axl, axl].forEach((x, k) => { const lift = (cfg.tri && k === 0) ? Lc * 0.028 : 0; ctx.beginPath(); ctx.arc(x + ex, -wr - lift + ey, wr, 0, Math.PI * 2); ctx.fillStyle = '#0c0e14'; ctx.fill(); });
+          // top face: the body profile swept away from the camera
+          const pts = bodyPoly(cfg.shape, Lc).slice(1, -1);
+          ctx.beginPath(); pts.forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
+          for (let k = pts.length - 1; k >= 0; k--) ctx.lineTo(pts[k][0] + ex, pts[k][1] + ey);
+          ctx.closePath(); ctx.fillStyle = ents[i].color; ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.32)'; ctx.fill();
+          ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.stroke();
+        }
+        drawCar(ctx, Lc, ents[i].cfg, ents[i].color, { rot: s / wheelRm });
+        ctx.restore();
+        const badge = (S.badges && S.badges[i]) || (ents[i].isPlayer ? 'YOU' : null);
+        if (badge) {
+          ctx.font = '700 10px ' + FONT_MONO;
+          const tw = ctx.measureText(badge).width + 10, bx = Math.max(3, cxp - Lc * 0.62 - tw), by = cyp - 11 - (tilt ? Wc * 0.4 : 0);
+          roundRectPath(ctx, bx, by, tw, 14, 4);
+          ctx.fillStyle = ents[i].isPlayer ? C.gold : 'rgba(241,236,224,0.92)'; ctx.fill();
+          ctx.fillStyle = '#12151d'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(badge, bx + tw / 2, by + 7.5);
+        }
+      }
+    }
+  }
+
+  let big = null;
+  if (t < 0) big = String(Math.min(3, Math.ceil(-t / 0.6)));
+  else if (t < 0.55) big = 'GO!';
+  if (big) {
+    ctx.font = '48px ' + FONT_DISPLAY; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(18,21,29,0.85)'; ctx.strokeText(big, W / 2, H * 0.24);
+    ctx.fillStyle = t < 0 ? C.ink : C.gold; ctx.fillText(big, W / 2, H * 0.24);
+  }
+  if (S.flash > 0) { ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * S.flash).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+}
+
+
+// ===== Gravity Cup UI: DOM wiring and game flow =====
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const MPH = 2.23694, FT_M = 3.28084, OZ = 28.35;
+  const PAINTS = [['Signal red', '#ea4b3c'], ['Gold', '#ffc527'], ['Cub blue', '#3f78ff'],
+                  ['Green', '#47c98a'], ['Pink', '#f26fa8'], ['Violet', '#8f6bff']];
+  const TIPS = {
+    ramp: 'A long, steep ramp, then a long flat. Friction and drag both count.',
+    dip: 'The hill after the valley needs momentum. Cut rolling resistance and drag.',
+    haul: 'A long flat run. Air drag takes the most energy here, so a low shape pays off.',
+    coaster: 'Two crests. Clear the second one with room to spare.',
+    giant: 'The finish is nearly as high as the start. Every bit of energy counts.'
+  };
+  const SPEEDS = [[1, 'Speed 1×'], [0.35, 'Slow-mo'], [3, 'Speed 3×']];
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const tracks = TRACKS.map(buildTrack);
+
+  const state = {
+    heat: 0, results: [],
+    cfg: { shape: SHAPES.wedge.h.slice(), wheels: 'lathed', coats: 2, c: 0.9, tri: false, wh: 0.5, align: 0.2, finish: 'raw' },
+    name: 'Splinter', color: '#3f78ff', view: 'angled'
+  };
+  let race = null, screen = 'garage', toastTimer = 0, active = -1, dragging = false;
+
+  // ---------- helpers ----------
+  function fit(canvas) {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return null;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+  const ord = n => ['1st', '2nd', '3rd', '4th'][n - 1] || (n + 'th');
+  const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function toast(msg, ok) {
+    const el = $('toast'); el.textContent = msg; el.className = 'toast' + (ok ? ' ok' : '');
+    clearTimeout(toastTimer);
+    if (msg) toastTimer = setTimeout(() => { el.textContent = ''; }, 3200);
+  }
+  function show(name) {
+    screen = name;
+    $('garage').hidden = name !== 'garage';
+    $('race').hidden = name !== 'race';
+    $('final').hidden = name !== 'final';
+    renderPips();
+  }
+  function presetOf(shape) {
+    return Object.values(SHAPES).find(p => sameShape(p.h, shape)) || null;
+  }
+
+  // ---------- header pips ----------
+  function renderPips() {
+    const ol = $('pips'); ol.innerHTML = '';
+    TRACKS.forEach((t, i) => {
+      const li = document.createElement('li'), r = state.results[i];
+      li.textContent = r ? (r.place ? String(r.place) : '–') : String(i + 1);
+      li.className = r ? 'done' : (i === state.heat && screen !== 'final' ? 'now' : '');
+      li.setAttribute('aria-label', 'Heat ' + (i + 1) + ', ' + t.name + (r ? (r.place ? ', finished ' + ord(r.place) : ', did not finish') : ''));
+      ol.appendChild(li);
+    });
+  }
+
+  // ---------- garage ----------
+  function buildOptions(el, items, key, getVal, costOf) {
+    el.innerHTML = '';
+    Object.values(items).forEach(it => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'opt'; b.dataset.id = it.id; b.setAttribute('aria-pressed', 'false');
+      const cost = costOf(it);
+      b.innerHTML = '<span class="n">' + it.name + '</span><span class="c">' + (cost ? cost + ' h' : 'free') + '</span>';
+      b.addEventListener('click', () => choose(key, getVal(it)));
+      el.appendChild(b);
+    });
+  }
+  function choose(key, val) {
+    const next = Object.assign({}, state.cfg, { [key]: val });
+    if (buildCost(next) > BUDGET + 1e-9) {
+      toast('Not enough bench hours for that. Drop a coat or swap another part first.');
+      return;
+    }
+    state.cfg = next; renderGarage();
+  }
+  function renderSegs() {
+    $('segShape').querySelectorAll('.opt').forEach(b => {
+      const p = SHAPES[b.dataset.id], sel = sameShape(p.h, state.cfg.shape);
+      b.classList.toggle('sel', sel);
+      b.setAttribute('aria-pressed', sel ? 'true' : 'false');
+      b.classList.toggle('locked', !sel && buildCost(Object.assign({}, state.cfg, { shape: p.h })) > BUDGET + 1e-9);
+    });
+    $('segFinish').querySelectorAll('.opt').forEach(b => {
+      const id = b.dataset.id, sel = state.cfg.finish === id;
+      b.classList.toggle('sel', sel);
+      b.setAttribute('aria-pressed', sel ? 'true' : 'false');
+      b.classList.toggle('locked', !sel && buildCost(Object.assign({}, state.cfg, { finish: id })) > BUDGET + 1e-9);
+    });
+    $('segWheels').querySelectorAll('.opt').forEach(b => {
+      const id = b.dataset.id, sel = state.cfg.wheels === id;
+      b.classList.toggle('sel', sel);
+      b.setAttribute('aria-pressed', sel ? 'true' : 'false');
+      b.classList.toggle('locked', !sel && buildCost(Object.assign({}, state.cfg, { wheels: id })) > BUDGET + 1e-9);
+    });
+  }
+  function renderMeters() {
+    const p = carParams(state.cfg);
+    const rows = [
+      ['Launch', clamp(p.hb / LAUNCH_H * 100, 0, 100), false],
+      ['Glide', clamp((0.030 - p.muClean) / (0.030 - 0.0105) * 100, 0, 100), false],
+      ['Slipstream', clamp((0.0020 - p.D) / 0.0011 * 100, 0, 100), false],
+      ['Tracking', clamp(100 * (1 - (trackLoss(state.cfg.align) - 2.1) / 2.4), 0, 100), false],
+      ['Stability', clamp(100 / p.instab, 0, 100), p.instab > 1.02]
+    ];
+    $('meters').innerHTML = rows.map(r =>
+      '<div class="meter' + (r[2] ? ' bad' : '') + '"><span class="label">' + r[0] + '</span>' +
+      '<div class="bar"><i style="width:' + r[1].toFixed(0) + '%"></i></div>' +
+      '<span class="v">' + r[1].toFixed(0) + '</span></div>').join('');
+  }
+  function trackLoss(a) { return 4.5 * (1 - a) * (1 - a) + 4 * a * a; }
+  function whWord(v) { return v < 0.2 ? 'Low' : v < 0.45 ? 'Lowish' : v < 0.7 ? 'Middle' : v < 0.9 ? 'High' : 'Highest'; }
+  function inspectorText() {
+    const cfg = state.cfg, p = carParams(cfg), cost = buildCost(cfg);
+    if (p.hi > 0.05) return 'The weight sits high, so the car wobbles. Stability is down ' + Math.round((p.instab - 1) * 100) + '%. Lower it unless you need the extra launch.';
+    if (p.instab > 1.02) return 'This nose is thin, so the front wheels lift when the weight sits behind ' + p.st.cMin.toFixed(1) + ' in. At ' + p.cAct.toFixed(2) + ' in rolling resistance goes up ' + Math.round((p.instab - 1) * 100) + '%. Shift the weight forward or give the nose more height.';
+    if (cfg.coats > 4) return 'Graphite is clumping past four coats. Back off a coat or two.';
+    if (BUDGET - cost >= 3) return (BUDGET - cost).toFixed(1).replace('.0', '') + ' bench hours are still unspent. Better wheels or a lower shape are waiting.';
+    return TIPS[TRACKS[state.heat].id];
+  }
+  function renderGarage() {
+    const cfg = state.cfg, cost = buildCost(cfg), p = carParams(cfg), st = p.st;
+    renderSegs();
+    const pre = presetOf(cfg.shape);
+    $('shapeName').textContent = pre ? pre.name : 'Custom';
+    $('shapeOut').textContent = 'Wood ' + (st.woodG / OZ).toFixed(2) + ' oz · weight to add ' + (st.tungstenG / OZ).toFixed(2) + ' oz';
+    $('com').value = cfg.c;
+    $('comOut').textContent = p.cAct.toFixed(2) + ' in';
+    const limited = Math.abs(cfg.c - p.cAct) > 0.03;
+    $('comHint').textContent = limited
+      ? 'This shape can only hold the weight between ' + p.com.cLo.toFixed(2) + ' and ' + p.com.cHi.toFixed(2) + ' in. Cut more wood to free up weight to move.'
+      : 'Inches ahead of the rear axle. Further back adds launch energy until the front wheels start to lift.';
+    $('comHint').classList.toggle('warn', limited);
+    $('wh').value = cfg.wh; $('whOut').textContent = whWord(cfg.wh);
+    $('whHint').textContent = 'Higher weight launches harder because it starts further up the ramp. Too high and the car wobbles.';
+    $('align').value = cfg.align; $('alignOut').textContent = Math.round(cfg.align * 100) + '%';
+    $('alignHint').textContent = cfg.align < 0.3 ? 'Barely aligned. The car bounces off the guide rail often, and every bounce costs speed.'
+      : cfg.align > 0.7 ? 'Wheels are canted hard to hug the rail. Few bounces, but the wheels scrub and slow the car.'
+      : 'A little cant keeps the car on the rail with little scrub. This is the sweet spot.';
+    $('coatVal').textContent = cfg.coats;
+    $('coatDots').innerHTML = Array.from({ length: 6 }, (_, i) => '<i class="' + (i < cfg.coats ? (i >= 4 ? 'clump' : 'on') : '') + '"></i>').join('');
+    $('triSw').setAttribute('aria-checked', cfg.tri ? 'true' : 'false');
+    $('hoursText').textContent = cost.toFixed(1) + ' of ' + BUDGET + ' used';
+    $('hoursFill').style.width = (cost / BUDGET * 100).toFixed(1) + '%';
+    renderMeters();
+    $('inspector').textContent = inspectorText();
+    drawPreviewNow();
+  }
+  function drawPreviewNow() {
+    const f = fit($('preview'));
+    if (f) drawPreview(f.ctx, f.w, f.h, state.cfg, state.color, 7, { active: dragging || document.activeElement === $('preview') ? active : -1 });
+  }
+  function renderHeatCard() {
+    const t = TRACKS[state.heat], tr = tracks[state.heat];
+    $('heatLabel').textContent = 'Heat ' + (state.heat + 1) + ' of ' + TRACKS.length;
+    $('heatName').textContent = t.name;
+    $('heatTip').textContent = TIPS[t.id];
+    $('heatMeta').textContent = Math.round(t.finishX * FT_M) + ' ft long · starts ' + Math.round(tr.Y[0] * FT_M) + ' ft up · 4 lanes';
+    const f = fit($('miniGarage'));
+    if (f) drawMini(f.ctx, f.w, f.h, tr, null);
+  }
+  function buildSwatches() {
+    const box = $('swatches'); box.innerHTML = '';
+    PAINTS.forEach(([name, hex]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'sw-dot'; b.style.background = hex;
+      b.setAttribute('role', 'radio'); b.setAttribute('aria-label', name);
+      b.setAttribute('aria-checked', hex === state.color ? 'true' : 'false');
+      b.addEventListener('click', () => {
+        state.color = hex;
+        box.querySelectorAll('.sw-dot').forEach(x => x.setAttribute('aria-checked', x === b ? 'true' : 'false'));
+        drawPreviewNow();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  // ---------- shape editor (drag the gold handles) ----------
+  function setStation(i, newH) {
+    newH = snapHeight(newH);
+    const cur = state.cfg.shape[i];
+    if (Math.abs(newH - cur) < 1e-6) return;
+    const shape = state.cfg.shape.slice(); shape[i] = newH;
+    const next = Object.assign({}, state.cfg, { shape });
+    if (newH < cur && buildCost(next) > BUDGET + 1e-9) {
+      toast('Cutting that much needs more bench hours than you have left.');
+      return;
+    }
+    state.cfg = next; renderGarage();
+  }
+  function pointer(e) {
+    const r = $('preview').getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width, h: r.height };
+  }
+  function wireEditor() {
+    const pv = $('preview');
+    pv.addEventListener('pointerdown', e => {
+      const p = pointer(e), L = previewLayout(p.w, p.h), bot = carBot(L.Lc);
+      let best = -1, bd = 1e9;
+      state.cfg.shape.forEach((hh, i) => {
+        const d = Math.hypot(p.x - (L.cx - L.Lc / 2 + i * L.inch), p.y - (L.baseY + bot - hh * L.inch));
+        if (d < bd) { bd = d; best = i; }
+      });
+      if (bd < 34) {
+        active = best; dragging = true;
+        try { pv.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+        e.preventDefault(); drawPreviewNow();
+      }
+    });
+    pv.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const p = pointer(e), L = previewLayout(p.w, p.h);
+      setStation(active, (L.baseY + carBot(L.Lc) - p.y) / L.inch);
+      e.preventDefault();
+    });
+    const end = () => { if (dragging) { dragging = false; drawPreviewNow(); } };
+    pv.addEventListener('pointerup', end);
+    pv.addEventListener('pointercancel', end);
+    pv.addEventListener('focus', () => { if (active < 0) active = 3; drawPreviewNow(); });
+    pv.addEventListener('blur', drawPreviewNow);
+    pv.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') active = Math.max(0, active - 1);
+      else if (e.key === 'ArrowRight') active = Math.min(CAR.n - 1, active + 1);
+      else if (e.key === 'ArrowUp') setStation(active, state.cfg.shape[active] + CAR.step);
+      else if (e.key === 'ArrowDown') setStation(active, state.cfg.shape[active] - CAR.step);
+      else return;
+      e.preventDefault(); drawPreviewNow();
+    });
+  }
+
+  function showGarage() {
+    show('garage');
+    $('goBtn').disabled = false; $('goBtn').textContent = 'Weigh in and race';
+    toast('');
+    renderHeatCard(); renderGarage();
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- race ----------
+  function weighIn() {
+    $('goBtn').disabled = true;
+    toast('On the scale: 5.00 oz. Legal.', true);
+    setTimeout(startRace, reduce ? 150 : 650);
+  }
+  function startRace() {
+    const tr = tracks[state.heat], lanes = shuffle([0, 1, 2, 3]);
+    const ents = [{ name: state.name, color: state.color, cfg: { shape: state.cfg.shape.slice(), wheels: state.cfg.wheels, coats: state.cfg.coats, c: state.cfg.c, tri: state.cfg.tri, wh: state.cfg.wh, align: state.cfg.align, finish: state.cfg.finish }, isPlayer: true, lane: lanes[0], sloppy: 0 }];
+    const aiColors = shuffle(PAINTS.map(p => p[1]).filter(c => c !== state.color)).slice(0, 3);
+    AI_BASE.forEach((a, i) => ents.push({
+      name: a.name, color: aiColors[i], cfg: Object.assign({}, a.cfg, { shape: a.cfg.shape.slice() }), isPlayer: false, lane: lanes[i + 1],
+      sloppy: AI_SLOPPY[state.heat] * (0.4 + Math.random() * 1.2)
+    }));
+    ents.forEach(e => { e.r = carParams(e.cfg).r; });
+    const sim = simulate(tr, ents, Math.floor(Math.random() * 1e9));
+    const ranks = rankCars(sim);
+    const places = {}; let n = 0;
+    ranks.forEach(i => { if (sim.cars[i].finished) places[i] = ++n; });
+    race = {
+      tr, ents, sim, ranks, places, t: -1.8, speed: 1, speedIdx: 0,
+      cam: { x: 2.3, y: tr.Y[0] }, flashed: false, flashAt: 0, done: false,
+      last: performance.now(), raf: 0
+    };
+    show('race');
+    $('raceLabel').textContent = 'Heat ' + (state.heat + 1) + ' of ' + TRACKS.length + ' · Lane ' + (ents[0].lane + 1);
+    $('raceName').textContent = TRACKS[state.heat].name;
+    $('results').hidden = true; $('results').innerHTML = '';
+    $('speedBtn').textContent = SPEEDS[0][1];
+    $('skipBtn').disabled = false; $('speedBtn').disabled = false;
+    window.scrollTo(0, 0);
+    drawRace(0.016);
+    race.raf = requestAnimationFrame(frame);
+  }
+  function frame(ts) {
+    if (!race || race.done) return;
+    const dtF = clamp((ts - race.last) / 1000, 0, 0.05); race.last = ts;
+    race.t = Math.min(race.sim.tEnd, race.t + dtF * race.speed);
+    drawRace(dtF);
+    if (race.t >= race.sim.tEnd) { endRace(); return; }
+    race.raf = requestAnimationFrame(frame);
+  }
+  function drawRace(dtF) {
+    const f = fit($('scene')); if (!f || !race) return;
+    const r = race, sim = r.sim, tr = r.tr;
+    const idx = clamp(Math.floor(Math.max(0, r.t) / sim.dt), 0, sim.frames - 1);
+    let lead = 0; sim.cars.forEach(c => { if (c.S[idx] > lead) lead = c.S[idx]; });
+    const lp = tr.at(lead);
+    const half = VIEW_W / 2;
+    const tx = clamp(lp.x + 0.9, 2.3, tr.X[tr.N] - (half - 0.6)), ty = lp.y + 0.1;
+    const k = Math.min(1, dtF * 9 * Math.max(1, r.speed));
+    r.cam.x += (tx - r.cam.x) * k; r.cam.y += (ty - r.cam.y) * k;
+    if (!r.flashed && sim.firstFinish != null && r.t >= sim.firstFinish) { r.flashed = true; r.flashAt = performance.now(); }
+    const flash = (!reduce && r.flashed) ? clamp(1 - (performance.now() - r.flashAt) / 320, 0, 1) : 0;
+    const badges = r.ents.map((e, i) => {
+      const c = sim.cars[i];
+      return (c.finished && c.finishT <= r.t) ? ord(r.places[i]) : null;
+    });
+    drawScene(f.ctx, f.w, f.h, { track: tr, sim, t: r.t, cam: r.cam, ents: r.ents, badges, flash, reduce, view: state.view });
+    const m = fit($('miniRace'));
+    if (m) drawMini(m.ctx, m.w, m.h, tr, r.ents.map((e, i) => ({ s: sim.cars[i].S[idx], color: e.color, player: e.isPlayer })));
+    const pc = sim.cars[0];
+    $('clock').textContent = ((pc.finished && pc.finishT <= r.t) ? pc.finishT : Math.max(0, r.t)).toFixed(3);
+    $('mph').textContent = Math.abs(pc.V[idx] * MPH).toFixed(1);
+  }
+  function endRace() {
+    if (!race) return;
+    cancelAnimationFrame(race.raf);
+    race.done = true; race.t = race.sim.tEnd;
+    drawRace(0.016);
+    $('skipBtn').disabled = true; $('speedBtn').disabled = true;
+    showResults();
+  }
+
+  function notesFor(r) {
+    const c = r.sim.cars[0], e = r.ents[0], p = carParams(e.cfg), tr = r.tr, out = [];
+    if (!c.finished) {
+      const at = Math.round(tr.at(c.peakS).x * FT_M);
+      out.push(c.rolledBack
+        ? 'Ran out of energy at ' + at + ' ft and rolled back down. More launch height, less friction or less drag would have cleared it.'
+        : 'Ran out of energy at ' + at + ' ft. Cut friction or drag to carry more speed.');
+    }
+    const tot = c.eDrag + c.eRoll, drag = tot > 0 ? Math.round(c.eDrag / tot * 100) : 0;
+    let s = 'Top speed ' + (c.vmax * MPH).toFixed(1) + ' mph. Air drag took ' + drag + '% of the energy you lost and rolling resistance ' + (100 - drag) + '%.';
+    if (drag >= 55) s += ' A lower, smoother shape would help.';
+    else if (drag <= 35) s += ' Wheels and graphite are where the time is.';
+    out.push(s);
+    if (p.r > 0.02) out.push('The thin nose let the front wheels unload with the weight at ' + p.cAct.toFixed(2) + ' in. That added ' + Math.round((p.instab - 1) * 100) + '% rolling resistance.');
+    if (e.cfg.tri) out.push(c.veered ? 'The three-wheeler veered into the guide rail on the ramp and lost 5% of its speed.' : 'The three-wheeler tracked straight and ran with less friction.');
+    if (c.bounced > 0) out.push('The car bounced off the guide rail ' + c.bounced + (c.bounced > 1 ? ' times' : ' time') + ' and lost speed each time. Better rail steering would cut that.');
+    if (p.hi > 0.05) out.push('The high weight made the car wobble and cost some rolling resistance.');
+    if (e.cfg.coats > 4) out.push('Graphite clumped past four coats and cost you speed.');
+    return out.slice(0, 4);
+  }
+
+  function showResults() {
+    const r = race, sim = r.sim, order = r.ranks, pc = sim.cars[0];
+    const pPlace = order.indexOf(0) + 1, fin = pc.finished;
+    const pts = fin ? Math.max(0, 5 - pPlace) : 0;
+    state.results[state.heat] = { place: fin ? pPlace : null, time: fin ? pc.finishT : null, pts };
+    renderPips();
+    const winner = sim.cars[order[0]];
+    const winT = winner.finished ? winner.finishT : null;
+    const second = sim.cars[order[1]];
+    const photo = winner.finished && second.finished && (second.finishT - winT) < 0.02;
+    const rows = order.map((i, n) => {
+      const c = sim.cars[i], e = r.ents[i];
+      const tm = c.finished ? c.finishT.toFixed(3) + ' s' : 'DNF';
+      const gap = c.finished && n > 0 ? '+' + (c.finishT - winT).toFixed(3) : '';
+      return '<li class="row-r' + (e.isPlayer ? ' me' : '') + '"><span class="pl">' + (c.finished ? ord(n + 1) : '–') + '</span>' +
+        '<span class="nm"><i class="chip" style="background:' + e.color + '"></i><span class="t">' + esc(e.name) + '</span></span>' +
+        '<span class="tm">' + tm + '</span><span class="gp">' + gap + '</span></li>';
+    }).join('');
+    const notes = notesFor(r).map(t => '<p>' + esc(t) + '</p>').join('');
+    const last = state.heat === TRACKS.length - 1;
+    $('results').innerHTML =
+      '<p class="verdict">' + (fin ? ord(pPlace) + ' place' : 'Did not finish') + '<small>+' + pts + ' pt' + (pts === 1 ? '' : 's') + '</small></p>' +
+      (photo ? '<p><span class="badge">Photo finish</span></p>' : '') +
+      '<ul class="rows">' + rows + '</ul>' +
+      '<div class="reportp"><span class="eyebrow">Inspector’s report</span>' + notes + '</div>' +
+      '<button type="button" class="primary" id="nextBtn">' + (last ? 'See final standings' : 'Tune for heat ' + (state.heat + 2) + ': ' + esc(TRACKS[state.heat + 1].name)) + '</button>';
+    const box = $('results'); box.hidden = false;
+    $('nextBtn').addEventListener('click', () => { if (last) showFinal(); else { state.heat++; showGarage(); } });
+    try { box.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    box.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // ---------- final ----------
+  function showFinal() {
+    const total = state.results.reduce((a, r) => a + (r ? r.pts : 0), 0);
+    let best = total;
+    try {
+      const prev = parseInt(localStorage.getItem('gravitycup.best'), 10);
+      if (!isNaN(prev) && prev > best) best = prev;
+      localStorage.setItem('gravitycup.best', String(best));
+    } catch (e) { /* storage unavailable */ }
+    const title = total >= 19 ? 'Grand Champion' : total >= 16 ? 'District Champion' : total >= 12 ? 'Pack Champion' : total >= 8 ? 'Pinewood Regular' : 'Sawdust Rookie';
+    const list = TRACKS.map((t, i) => {
+      const r = state.results[i] || { place: null, pts: 0 };
+      return '<li><span class="tn">' + t.name + '</span><span class="pl">' + (r.place ? ord(r.place) : 'DNF') + '</span><span class="pt">+' + r.pts + '</span></li>';
+    }).join('');
+    show('final');
+    $('final').innerHTML =
+      '<div><p class="eyebrow">Final standings</p><p class="title">' + title + '</p>' +
+      '<p class="score">' + total + ' of 20 points · best ' + best + '</p></div>' +
+      '<ul class="heatlist">' + list + '</ul>' +
+      '<button type="button" class="primary" id="againBtn">Race the cup again</button>';
+    $('againBtn').addEventListener('click', () => { state.heat = 0; state.results = []; race = null; showGarage(); });
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- wiring ----------
+  function redrawVisible() {
+    if (screen === 'garage') { renderHeatCard(); drawPreviewNow(); }
+    else if (screen === 'race' && race && race.done) drawRace(0.016);
+  }
+
+  function init() {
+    buildOptions($('segShape'), SHAPES, 'shape', it => it.h.slice(), it => shapeStats(it.h).cost);
+    buildOptions($('segWheels'), WHEELS, 'wheels', it => it.id, it => it.cost);
+    buildOptions($('segFinish'), FINISH, 'finish', it => it.id, it => it.cost);
+    buildSwatches();
+    wireEditor();
+    $('wh').addEventListener('input', e => { state.cfg.wh = parseFloat(e.target.value); renderGarage(); });
+    $('align').addEventListener('input', e => { state.cfg.align = parseFloat(e.target.value); renderGarage(); });
+    $('com').addEventListener('input', e => { state.cfg.c = parseFloat(e.target.value); renderGarage(); });
+    $('carName').addEventListener('input', e => { state.name = e.target.value.trim() || 'Splinter'; });
+    $('coatMinus').addEventListener('click', () => { if (state.cfg.coats > 0) { state.cfg.coats--; renderGarage(); } });
+    $('coatPlus').addEventListener('click', () => {
+      if (state.cfg.coats >= 6) return;
+      const next = Object.assign({}, state.cfg, { coats: state.cfg.coats + 1 });
+      if (buildCost(next) > BUDGET + 1e-9) { toast('Not enough bench hours for another coat.'); return; }
+      state.cfg = next; renderGarage();
+    });
+    $('triSw').addEventListener('click', () => {
+      const next = Object.assign({}, state.cfg, { tri: !state.cfg.tri });
+      if (buildCost(next) > BUDGET + 1e-9) { toast('Not enough bench hours for a three-wheeler.'); return; }
+      state.cfg = next; renderGarage();
+    });
+    $('goBtn').addEventListener('click', weighIn);
+    $('speedBtn').addEventListener('click', () => {
+      if (!race) return;
+      race.speedIdx = (race.speedIdx + 1) % SPEEDS.length;
+      race.speed = SPEEDS[race.speedIdx][0];
+      $('speedBtn').textContent = SPEEDS[race.speedIdx][1];
+    });
+    $('viewBtn').addEventListener('click', () => {
+      state.view = state.view === 'angled' ? 'side' : 'angled';
+      $('viewBtn').textContent = state.view === 'angled' ? 'Side view' : 'Angled view';
+      if (race) drawRace(0.016);
+    });
+    $('skipBtn').addEventListener('click', () => { if (race && !race.done) endRace(); });
+    window.addEventListener('resize', redrawVisible);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawVisible);
+    showGarage();
+  }
+  init();
+})();
+
+</script>
+
+</body></html>

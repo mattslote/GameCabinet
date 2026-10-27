@@ -1,0 +1,1021 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Deep Escape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: full-bleed canvas, readouts pinned top, thrust controls pinned bottom. One-screen game, deliberately dark. */
+:root {
+  color-scheme: dark;
+  --bg: #060812;
+  --ink: #e6ebf7;
+  --dim: #8993ad;
+  --line: rgba(170, 190, 235, 0.22);
+  --panel: rgba(10, 14, 30, 0.66);
+  --thrust: #ffa44d;
+  --path: #79d7ff;
+  --danger: #ff6b6b;
+  --gold: #ffd27a;
+  --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+html { box-sizing: border-box; height: 100%; }
+body { height: 100%; background: var(--bg); color: var(--ink); font-family: var(--mono); overflow: hidden; overscroll-behavior: none; }
+#app { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.hud { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 16px; padding: 14px 16px 0; pointer-events: none; }
+.read { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.read.right { align-items: flex-end; text-align: right; }
+.lab { font: 500 10px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.big b { font: 600 56px/0.95 var(--display); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.mid b { font: 600 32px/1 var(--display); font-variant-numeric: tabular-nums; }
+.big i, .mid i { font: 400 11px var(--mono); font-style: normal; color: var(--dim); margin-left: 6px; letter-spacing: 0.1em; }
+.sub { font: 400 11px/1.3 var(--mono); color: var(--dim); max-width: 46vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.sub.esc { color: var(--gold); }
+
+.warn { position: absolute; left: 50%; top: 150px; transform: translateX(-50%); padding: 7px 12px; border: 1px solid rgba(255, 107, 107, 0.6); background: rgba(40, 8, 12, 0.72); color: var(--danger); border-radius: 6px; font: 500 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; pointer-events: none; }
+.warn.hot { animation: pulse 0.7s ease-in-out infinite alternate; }
+@keyframes pulse { from { background: rgba(40, 8, 12, 0.72); } to { background: rgba(110, 18, 28, 0.85); } }
+.toast { position: absolute; left: 50%; bottom: 114px; transform: translate(-50%, 6px); opacity: 0; transition: opacity 0.3s, transform 0.3s; padding: 7px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font: 400 11px/1 var(--mono); letter-spacing: 0.06em; color: var(--gold); pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.fuel { position: absolute; left: 16px; right: 16px; bottom: 88px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
+.fuel .track { flex: 1; height: 4px; border-radius: 2px; background: rgba(170, 190, 235, 0.16); overflow: hidden; }
+.fuel .fill { height: 100%; width: 100%; transform-origin: left center; background: var(--thrust); }
+.fuel.wait .fill { background: rgba(255, 164, 77, 0.45); }
+.fuel.empty .fill { background: var(--danger); }
+.fuel b { min-width: 3.4em; text-align: right; font: 500 11px/1 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.controls { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 0 16px 14px; pointer-events: none; }
+.grp { display: flex; gap: 10px; flex: 1; max-width: 520px; margin-inline: auto; }
+.btn { pointer-events: auto; height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; font: 500 10px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; touch-action: none; -webkit-tap-highlight-color: transparent; backdrop-filter: blur(6px); cursor: pointer; padding: 0; }
+.btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn.brake { flex: 1; color: var(--path); border-color: rgba(121, 215, 255, 0.4); }
+.btn.burn { flex: 1; color: var(--thrust); border-color: rgba(255, 164, 77, 0.55); }
+.btn.on { background: rgba(255, 255, 255, 0.16); border-color: var(--ink); }
+.btn.burn.on { background: var(--thrust); color: #1b0f02; border-color: var(--thrust); }
+.btn.brake.on { background: var(--path); color: #04141c; border-color: var(--path); }
+.btn:focus-visible, .go:focus-visible { outline: 2px solid var(--path); outline-offset: 2px; }
+
+.card { position: absolute; left: 16px; right: 16px; margin-inline: auto; max-width: 360px; display: flex; flex-direction: column; gap: 12px; padding: 18px; background: rgba(8, 11, 24, 0.8); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(10px); }
+#intro { bottom: 96px; }
+#over { top: 50%; transform: translateY(-50%); }
+.card h1, .card h2 { margin: 0; font: 700 38px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; }
+.card p { margin: 0; font: 400 12.5px/1.5 var(--mono); color: var(--dim); }
+.card dl { margin: 0; display: grid; grid-template-columns: 56px 1fr; gap: 8px 10px; align-items: baseline; }
+.card dt { font: 500 10px/1.4 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; }
+.card dt.b { color: var(--thrust); } .card dt.k { color: var(--path); } .card dt.s { color: var(--ink); }
+.card dd { margin: 0; font: 400 12px/1.45 var(--mono); color: var(--dim); }
+.go { height: 46px; border: 0; border-radius: 8px; background: var(--ink); color: #0a0e1c; font: 700 20px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+.go:active { transform: translateY(1px); }
+.hit { color: var(--danger) !important; }
+.board { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.board th, .board td { padding: 10px 0 10px 10px; border-top: 1px solid var(--line); text-align: right; font: 500 13px/1.2 var(--mono); color: var(--ink); white-space: nowrap; }
+.board thead th { border-top: 0; padding-top: 0; font: 500 10px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.board tbody th { padding-left: 0; text-align: left; font: 500 10px/1.2 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.board td.best { color: var(--dim); }
+.board td.hero { font: 600 32px/1 var(--display); }
+.board td.new::before { content: 'New'; margin-right: 8px; padding: 3px 6px; border-radius: 4px; background: var(--gold); color: #261a00; font: 500 9px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; vertical-align: middle; }
+
+.touch-only { display: none; }
+@media (hover: none) { .touch-only { display: inline; } .kbd-only { display: none; } }
+@media (prefers-reduced-motion: reduce) { .warn.hot { animation: none; } .toast { transition: none; } }
+@media (max-height: 560px) { .big b { font-size: 42px; } #intro { padding: 12px 14px; gap: 8px; } .card h1 { font-size: 30px; } }
+</style>
+
+<div id="app">
+  <canvas id="c" aria-label="Space field with stars, planets and your ship"></canvas>
+
+  <header class="hud">
+    <div class="read">
+      <span class="lab">Distance from start</span>
+      <span class="big"><b id="dist">0.00</b><i>AU</i></span>
+      <span class="sub">Best <b id="best">0.00</b> AU</span>
+      <span class="sub">Flight <b id="ftime">0:00</b></span>
+      <span class="sub">Max speed <b id="topspd">0</b> km/s</span>
+    </div>
+    <div class="read right">
+      <span class="lab">Speed</span>
+      <span class="mid"><b id="spd">0</b><i>km/s</i></span>
+      <span class="sub" id="near">Hearth</span>
+      <span class="sub" id="traj"></span>
+    </div>
+  </header>
+
+  <div id="warn" class="warn" hidden>Impact in <span id="tti">0.0</span> s · <span id="wname"></span></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <section id="intro" class="card">
+    <h1>Deep Escape</h1>
+    <p>You are in a steady orbit around Hearth. Get as far from here as you can without hitting anything.</p>
+    <dl>
+      <dt class="b">Burn</dt><dd>Speed up. Burn and brake share 3 s of fuel, refilled over 15 s of rest. One tank won't get you out, so plan your burns.</dd>
+      <dt class="k">Brake</dt><dd>Slow down, and keep going to reverse. Go too slow and gravity pulls you in.</dd>
+    </dl>
+    <p>The dotted line shows where you drift if you stop thrusting. Burn near the lowest point of your orbit for the most effect.</p>
+    <p class="kbd-only">Keys: ↑ burn, ↓ brake, + and − or scroll to zoom.</p>
+    <p class="touch-only">Pinch to zoom out and plan your path.</p>
+    <button id="launch" class="go" type="button">Launch</button>
+  </section>
+
+  <section id="over" class="card" hidden>
+    <h2>Signal lost</h2>
+    <p class="hit" id="overHit">Impact</p>
+    <table class="board" aria-label="Flight results">
+      <thead><tr><th></th><th>This flight</th><th>Best</th></tr></thead>
+      <tbody>
+        <tr><th>Distance</th><td id="rDist" class="hero">0.00 AU</td><td id="bDist" class="best">0.00 AU</td></tr>
+        <tr><th>Max speed</th><td id="rTop">0 km/s</td><td id="bTop" class="best">0 km/s</td></tr>
+        <tr><th>Flight time</th><td id="rTime">0:00</td><td id="bTime" class="best">0:00</td></tr>
+      </tbody>
+    </table>
+    <button id="retry" class="go" type="button">Launch again</button>
+  </section>
+
+  <div class="fuel" aria-label="Burn fuel"><span class="lab">Fuel</span><div class="track"><div class="fill" id="fuelFill"></div></div><b id="fuelTxt">5.0 s</b></div>
+
+  <nav class="controls" aria-label="Flight controls">
+    <div class="grp">
+      <button class="btn brake" data-act="brake" type="button"><svg viewBox="0 0 24 24"><path d="M5 4l7 7 7-7M5 10l7 7 7-7"/></svg>Brake</button>
+      <button class="btn burn" data-act="burn" type="button"><svg viewBox="0 0 24 24"><path d="M5 14l7-7 7 7M5 20l7-7 7 7"/></svg>Burn</button>
+    </div>
+  </nav>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- constants ---------- */
+const TAU = Math.PI * 2;
+const CELL = 2200;            // world is a grid of cells, each may hold one system
+const AU = 1000;              // 1 AU = 1000 world units
+const VMAX = 720;
+const A_BURN = 10, A_BRAKE = 12;
+const STEP = 1 / 120;
+const SHIP_R = 5;
+const KMS = 0.67;             // world units/s to km/s (a 78 u/s orbit at 0.33 AU reads about 52 km/s)
+const START_X = 330, START_Y = 0, HOME_GM = 5e6;
+const FUEL_MAX = 3, FUEL_DELAY = 0.5, FUEL_REFILL = 15;   // seconds of burn or brake, rest before refill, seconds to refill from empty
+const PLANET_K = 300;         // planet GM = PLANET_K * radius^2
+const FAR = 3400, FAR_IN = 2400, FAR2 = FAR * FAR, FAR_IN2 = FAR_IN * FAR_IN;   // a star's pull fades smoothly between these distances
+const PL_IN = 500, PL_OUT = 1000, PL_IN2 = PL_IN * PL_IN, PL_OUT2 = PL_OUT * PL_OUT;   // same for a planet's pull
+const STAR_K = 2000;          // star GM = STAR_K * radius * min(radius, 80)
+const PRED_T = 70, PRED_MAX = 1400;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+/* ---------- dom ---------- */
+const $ = (id) => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d');
+const elDist = $('dist'), elBest = $('best'), elSpd = $('spd'), elNear = $('near'), elTraj = $('traj'), elFT = $('ftime'), elTop = $('topspd');
+const warn = $('warn'), tti = $('tti'), wname = $('wname'), toastEl = $('toast');
+const intro = $('intro'), over = $('over');
+const overHit = $('overHit');
+const fuelBox = document.querySelector('.fuel'), fuelFill = $('fuelFill'), fuelTxt = $('fuelTxt');
+
+let W = 300, Hh = 600, dpr = 1;
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(1, r.width); Hh = Math.max(1, r.height);
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(Hh * dpr);
+}
+if (window.ResizeObserver) new ResizeObserver(resize).observe($('app'));
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- random ---------- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hash3(a, b, c) {
+  let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 1103515245);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = Math.imul(h ^ (h >>> 16), 2246822519);
+  return (h ^ (h >>> 15)) >>> 0;
+}
+const hf = (a, b, c) => hash3(a, b, c) / 4294967296;
+
+/* ---------- world generation ---------- */
+const STAR_LOOK = {
+  red:  { core: '#ffb08a', glow: '255,110,60' },
+  gold: { core: '#fff0c2', glow: '255,176,70' },
+  blue: { core: '#f2f8ff', glow: '120,175,255' }
+};
+const CATS = ['Kepler', 'HD', 'GJ', 'TOI', 'Wolf', 'Gliese', 'LHS'];
+function starName(r) {
+  const c = CATS[Math.floor(r() * CATS.length)];
+  const n = 100 + Math.floor(r() * r() * 9000);
+  return (c === 'Kepler' || c === 'TOI') ? c + '-' + n : c + ' ' + n;
+}
+function planetLook(kind, r) {
+  let h, s, l1, l2, bands = null;
+  if (kind === 'rocky') { h = 10 + r() * 30; s = 22 + r() * 18; l1 = 60; l2 = 36; }
+  else if (kind === 'desert') { h = 26 + r() * 18; s = 45 + r() * 20; l1 = 66; l2 = 42; }
+  else if (kind === 'ocean') { h = 198 + r() * 22; s = 45 + r() * 20; l1 = 62; l2 = 36; }
+  else if (kind === 'ice') { h = 184 + r() * 16; s = 30 + r() * 20; l1 = 82; l2 = 58; }
+  else {
+    const f = r();
+    h = f < 0.4 ? 24 + r() * 20 : f < 0.75 ? 172 + r() * 28 : 268 + r() * 34;
+    s = 35 + r() * 25; l1 = 72; l2 = 46;
+    bands = [0, 1, 2, 3].map(() => 'hsl(' + (h + (r() - 0.5) * 14) + ',' + (s + (r() - 0.5) * 14) + '%,' + (34 + r() * 40) + '%)');
+  }
+  return { c1: 'hsl(' + h + ',' + s + '%,' + l1 + '%)', c2: 'hsl(' + h + ',' + s + '%,' + l2 + '%)', bands: bands };
+}
+function mkPlanet(r, name, orb, Rp, kind, sx, sy, GMs, dir, phase) {
+  const look = planetLook(kind, r);
+  return {
+    name: name, R: Rp, GM: PLANET_K * Rp * Rp, kind: kind, c1: look.c1, c2: look.c2, bands: look.bands,
+    orbitR: orb, phase: phase == null ? r() * TAU : phase,
+    omega: orb > 0 ? dir * Math.sqrt(GMs / (orb * orb * orb)) : 0,
+    bx: sx, by: sy,
+    ring: kind === 'gas' ? r() < 0.45 : kind === 'ice' ? r() < 0.12 : false,
+    ringTilt: r() * Math.PI, bandTilt: (r() - 0.5) * 0.5, x: sx, y: sy
+  };
+}
+function finishSystem(x, y, star, planets) {
+  let reach = star ? star.R + 60 : 60;
+  for (let i = 0; i < planets.length; i++) {
+    const p = planets[i];
+    const ext = p.orbitR > 0 ? p.orbitR + p.R : Math.hypot(p.bx - x, p.by - y) + p.R;
+    reach = Math.max(reach, ext + 60);
+  }
+  return { x: x, y: y, star: star, starR: star ? star.R : 0, starGM: star ? star.GM : 0, planets: planets, reach: reach, reach2: (reach + PL_OUT) * (reach + PL_OUT) };
+}
+function homeSystem() {
+  const r = mulberry32(7);
+  const star = { name: 'Hearth', R: 50, GM: HOME_GM, look: STAR_LOOK.gold };
+  const planets = [
+    mkPlanet(r, 'Hearth b', 560, 14, 'rocky', 0, 0, HOME_GM, 1, 2.2),
+    mkPlanet(r, 'Hearth c', 790, 26, 'ocean', 0, 0, HOME_GM, 1, 4.6),
+    mkPlanet(r, 'Hearth d', 1040, 44, 'gas', 0, 0, HOME_GM, 1, 0.8)
+  ];
+  planets[2].ring = true;
+  return finishSystem(0, 0, star, planets);
+}
+function starSystem(r, x, y) {
+  const u = r();
+  let R, kind;
+  if (u < 0.45) { R = 26 + r() * 20; kind = 'red'; }
+  else if (u < 0.8) { R = 46 + r() * 34; kind = 'gold'; }
+  else { R = 84 + r() * (r() < 0.2 ? 90 : 46); kind = 'blue'; }
+  const GM = STAR_K * R * Math.min(R, 80);
+  const name = starName(r);
+  const star = { name: name, R: R, GM: GM, look: STAR_LOOK[kind] };
+  const dir = r() < 0.5 ? -1 : 1;
+  const n = r() < 0.1 ? 0 : 1 + Math.floor(r() * 6);
+  const planets = [];
+  let orb = R * 2.6 + 120 + r() * 60;
+  for (let i = 0; i < n && orb < 850; i++) {
+    const frac = clamp((orb - 120) / 730, 0, 1);
+    let pk, Rp;
+    const gas = r() < (frac > 0.35 ? 0.55 : 0.08);
+    if (gas) { pk = 'gas'; Rp = 24 + r() * 26; }
+    else {
+      const v = r();
+      pk = frac < 0.3 ? (v < 0.55 ? 'desert' : 'rocky') : frac < 0.65 ? (v < 0.45 ? 'ocean' : v < 0.8 ? 'rocky' : 'desert') : (v < 0.6 ? 'ice' : 'rocky');
+      Rp = 8 + Math.pow(r(), 1.5) * 20;
+    }
+    planets.push(mkPlanet(r, name + ' ' + String.fromCharCode(98 + i), orb, Rp, pk, x, y, GM, dir, null));
+    orb += 100 + r() * 190;
+  }
+  return finishSystem(x, y, star, planets);
+}
+function rogueSystem(r, x, y) {
+  const n = 1 + Math.floor(r() * 3);
+  const planets = [];
+  const base = starName(r);
+  for (let i = 0; i < n; i++) {
+    const gas = r() < 0.4;
+    const kind = gas ? 'gas' : (r() < 0.5 ? 'ice' : 'rocky');
+    const Rp = gas ? 24 + r() * 30 : 8 + r() * 22;
+    planets.push(mkPlanet(r, base + ' ' + String.fromCharCode(98 + i), 0, Rp, kind, x + (r() - 0.5) * 700, y + (r() - 0.5) * 700, 0, 1, 0));
+  }
+  return finishSystem(x, y, null, planets);
+}
+function genSystem(cx, cy) {
+  if (cx === 0 && cy === 0) return homeSystem();
+  const r = mulberry32(hash3(cx, cy, seed));
+  const roll = r();
+  const x = cx * CELL + (r() - 0.5) * 1000, y = cy * CELL + (r() - 0.5) * 1000;
+  if (roll < 0.78) return starSystem(r, x, y);
+  if (roll < 0.9) return rogueSystem(r, x, y);
+  return null;
+}
+let seed = 1;
+const cache = new Map();
+function getSys(cx, cy) {
+  const k = (cx + 60000) * 120001 + (cy + 60000);
+  let s = cache.get(k);
+  if (s === undefined) { s = genSystem(cx, cy); cache.set(k, s); }
+  return s;
+}
+function placePlanet(p, t) {
+  const a = p.phase + p.omega * t;
+  p.x = p.bx + p.orbitR * Math.cos(a);
+  p.y = p.by + p.orbitR * Math.sin(a);
+}
+
+/* ---------- physics ---------- */
+function fadeD(d, inner, outer) {
+  if (d <= inner) return 1;
+  if (d >= outer) return 0;
+  const u = (d - inner) / (outer - inner);
+  return 1 - u * u * (3 - 2 * u);
+}
+/* PHI[i]: potential well depth per unit GM at distance i*10, using the same softening and fade as the pull itself */
+const PHI_N = 341, PHI = new Float64Array(PHI_N);
+(function () {
+  const g = (s) => fadeD(s, FAR_IN, FAR) * s / Math.pow(s * s + 400, 1.5);
+  let acc = 0;
+  for (let i = PHI_N - 2; i >= 0; i--) {
+    const a = i * 10;
+    acc += (g(a) + 4 * g(a + 5) + g(a + 10)) / 6 * 10;
+    PHI[i] = acc;
+  }
+})();
+function phiAt(d) {
+  const f = d / 10, i = Math.floor(f);
+  if (i >= PHI_N - 1) return 0;
+  const fr = f - i;
+  return PHI[i] * (1 - fr) + PHI[i + 1] * fr;
+}
+const accOut = { ax: 0, ay: 0 };
+function gravity(x, y, t, list, out) {
+  let ax = 0, ay = 0;
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    const dx = s.x - x, dy = s.y - y, d2 = dx * dx + dy * dy;
+    if (d2 > FAR2) continue;
+    if (s.starGM) {
+      const w = d2 <= FAR_IN2 ? 1 : fadeD(Math.sqrt(d2), FAR_IN, FAR);
+      const r2 = d2 + 400, f = w * s.starGM / (r2 * Math.sqrt(r2));
+      ax += f * dx; ay += f * dy;
+    }
+    if (d2 < s.reach2) {
+      const ps = s.planets;
+      for (let j = 0; j < ps.length; j++) {
+        const p = ps[j];
+        placePlanet(p, t);
+        const px = p.x - x, py = p.y - y, pd2 = px * px + py * py;
+        if (pd2 >= PL_OUT2) continue;
+        const w = pd2 <= PL_IN2 ? 1 : fadeD(Math.sqrt(pd2), PL_IN, PL_OUT);
+        const q2 = pd2 + 100, f = w * p.GM / (q2 * Math.sqrt(q2));
+        ax += f * px; ay += f * py;
+      }
+    }
+  }
+  out.ax = ax; out.ay = ay;
+}
+function segCircle(x0, y0, ex, ey, len2, bx, by, rad) {
+  let u = len2 > 0 ? ((bx - x0) * ex + (by - y0) * ey) / len2 : 0;
+  u = u < 0 ? 0 : u > 1 ? 1 : u;
+  const cx = x0 + ex * u - bx, cy = y0 + ey * u - by;
+  return cx * cx + cy * cy < rad * rad;
+}
+function segHit(x0, y0, x1, y1, t, list) {
+  const ex = x1 - x0, ey = y1 - y0, len2 = ex * ex + ey * ey, half = Math.sqrt(len2) / 2;
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    const dx = s.x - mx, dy = s.y - my, lim = s.reach + half + SHIP_R;
+    if (dx * dx + dy * dy > lim * lim) continue;
+    if (s.star && segCircle(x0, y0, ex, ey, len2, s.x, s.y, s.starR + SHIP_R)) return s.star;
+    const ps = s.planets;
+    for (let j = 0; j < ps.length; j++) {
+      const p = ps[j];
+      placePlanet(p, t);
+      if (segCircle(x0, y0, ex, ey, len2, p.x, p.y, p.R + SHIP_R)) return p;
+    }
+  }
+  return null;
+}
+
+/* ---------- game state ---------- */
+const ship = { x: START_X, y: START_Y, vx: 0, vy: 0, hx: 0, hy: 1 };
+let simT = 0, state = 'play', started = false, overReady = false, overTimer = 0;
+let maxDist = 0, bestStored = 0, msIdx = 0, hitName = '';
+let flightT = 0, maxSp = 0, bestTop = 0, bestTime = 0, prevBest = 0, prevTop = 0, prevTime = 0;
+let fuel = FUEL_MAX, restT = 0, burnOn = false, brakeOn = false;
+let nearList = [], nearCX = NaN, nearCY = NaN;
+const particles = [], trail = [];
+let trailT = 0, emitAcc = 0, hudT = 0, toastTimer = 0;
+let lz = 0, luz = 0, luzS = 0, zoom = 0.4, ox = 0, oy = 0, camX = 0, camY = 0;
+const kb = { burn: false, brake: false, left: false, right: false };
+const tc = { burn: false, brake: false, left: false, right: false };
+const inp = { burn: false, brake: false, left: false, right: false };
+const MILES = [[5.2, "Jupiter's distance"], [9.6, "Saturn's distance"], [19.2, "Uranus's distance"], [30.1, "Neptune's distance"], [39.5, "Pluto's distance"], [120, 'Heliopause range']];
+
+try {
+  bestStored = parseFloat(localStorage.getItem('deep-escape-best')) || 0;
+  bestTop = parseFloat(localStorage.getItem('deep-escape-top')) || 0;
+  bestTime = parseFloat(localStorage.getItem('deep-escape-time')) || 0;
+} catch (e) {}
+function saveBests() {
+  try {
+    localStorage.setItem('deep-escape-best', String(bestStored));
+    localStorage.setItem('deep-escape-top', String(bestTop));
+    localStorage.setItem('deep-escape-time', String(bestTime));
+  } catch (e) {}
+}
+function keepBests() {
+  if (maxDist > bestStored) bestStored = maxDist;
+  if (maxSp > bestTop) bestTop = maxSp;
+  if (flightT > bestTime) bestTime = flightT;
+  saveBests();
+}
+const fmtAU = (u) => { const v = u / AU; return v < 100 ? v.toFixed(2) : v.toFixed(1); };
+const fmtT = (s) => {
+  s = Math.floor(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(ss).padStart(2, '0');
+};
+
+function refreshNear() {
+  const cx = Math.round(ship.x / CELL), cy = Math.round(ship.y / CELL);
+  if (cx === nearCX && cy === nearCY) return;
+  nearCX = cx; nearCY = cy; nearList.length = 0;
+  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+    const s = getSys(cx + i, cy + j);
+    if (s) nearList.push(s);
+  }
+}
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+}
+function begin() {
+  if (started) return;
+  started = true; intro.hidden = true;
+}
+function reset() {
+  clearTimeout(overTimer);
+  seed = (Math.random() * 2147483647) | 0;
+  cache.clear(); nearCX = NaN; nearCY = NaN;
+  ship.x = START_X; ship.y = START_Y;
+  const r2 = START_X * START_X;
+  const f = HOME_GM * START_X / Math.pow(r2 + 400, 1.5);
+  ship.vx = 0; ship.vy = Math.sqrt(f * START_X); ship.hx = 0; ship.hy = 1;
+  simT = 0; state = 'play'; maxDist = 0; msIdx = 0; overReady = false;
+  flightT = 0; maxSp = 0; prevBest = bestStored; prevTop = bestTop; prevTime = bestTime;
+  fuel = FUEL_MAX; restT = 0; burnOn = false;
+  particles.length = 0; trail.length = 0; predN = 0; predHit = null;
+  over.hidden = true; warn.hidden = true;
+  lz = Math.log(clamp(0.55 / (1 + Math.hypot(ship.vx, ship.vy) / 150), 0.05, 0.55));
+  ox = 0; oy = 0;
+}
+function crash(hit) {
+  state = 'crashed'; hitName = hit.name;
+  const base = Math.hypot(ship.vx, ship.vy);
+  for (let i = 0; i < 90; i++) {
+    const a = Math.random() * TAU, sp = 20 + Math.random() * 200;
+    const life = 0.7 + Math.random() * 1.2;
+    particles.push({ x: ship.x, y: ship.y, vx: Math.cos(a) * sp + ship.vx * 0.2, vy: Math.sin(a) * sp + ship.vy * 0.2, l: life, m: life, s: 1.5 + Math.random() * 2.2, c: Math.random() < 0.5 ? '255,170,80' : '255,235,200' });
+  }
+  const nbD = maxDist > prevBest, nbT = maxSp > prevTop, nbF = flightT > prevTime;
+  keepBests();
+  warn.hidden = true;
+  overTimer = setTimeout(() => {
+    overHit.textContent = 'Impact with ' + hitName;
+    $('rDist').textContent = fmtAU(maxDist) + ' AU'; $('bDist').textContent = fmtAU(bestStored) + ' AU';
+    $('rTop').textContent = Math.round(maxSp * KMS) + ' km/s'; $('bTop').textContent = Math.round(bestTop * KMS) + ' km/s';
+    $('rTime').textContent = fmtT(flightT); $('bTime').textContent = fmtT(bestTime);
+    $('rDist').classList.toggle('new', nbD); $('rTop').classList.toggle('new', nbT); $('rTime').classList.toggle('new', nbF);
+    over.hidden = false; overReady = true;
+  }, 900);
+}
+
+function simStep(h) {
+  simT += h;
+  if (state !== 'play') return;
+  refreshNear();
+  gravity(ship.x, ship.y, simT, nearList, accOut);
+  let ax = accOut.ax, ay = accOut.ay;
+  burnOn = false; brakeOn = false;
+  if (inp.burn || inp.brake) {
+    restT = 0;
+    if (fuel > 0) {
+      fuel = Math.max(0, fuel - h);
+      if (inp.burn) { burnOn = true; ax += A_BURN * ship.hx; ay += A_BURN * ship.hy; }
+      if (inp.brake) { brakeOn = true; ax -= A_BRAKE * ship.hx; ay -= A_BRAKE * ship.hy; }
+    }
+  } else {
+    restT += h;
+    if (restT >= FUEL_DELAY && fuel < FUEL_MAX) fuel = Math.min(FUEL_MAX, fuel + h * FUEL_MAX / FUEL_REFILL);
+  }
+  ship.vx += ax * h; ship.vy += ay * h;
+  let sp = Math.hypot(ship.vx, ship.vy);
+  if (sp > VMAX) { ship.vx *= VMAX / sp; ship.vy *= VMAX / sp; sp = VMAX; }
+  if (started) { flightT += h; if (sp > maxSp) maxSp = sp; }
+  const nx = ship.x + ship.vx * h, ny = ship.y + ship.vy * h;
+  const hit = segHit(ship.x, ship.y, nx, ny, simT, nearList);
+  ship.x = nx; ship.y = ny;
+  if (sp > 3 && !brakeOn) { ship.hx = ship.vx / sp; ship.hy = ship.vy / sp; }
+  const d = Math.hypot(ship.x - START_X, ship.y - START_Y);
+  if (d > maxDist) maxDist = d;
+  while (msIdx < MILES.length && maxDist / AU >= MILES[msIdx][0]) { toast(MILES[msIdx][0] + ' AU · ' + MILES[msIdx][1]); msIdx++; }
+  if (hit) crash(hit);
+}
+
+/* ---------- trajectory preview ---------- */
+const predXY = new Float32Array(PRED_MAX * 2);
+const predList = [];
+let predN = 0, predHit = null;
+function distSeg(px, py, x0, y0, x1, y1) {
+  const ex = x1 - x0, ey = y1 - y0, l2 = ex * ex + ey * ey;
+  let u = l2 > 0 ? ((px - x0) * ex + (py - y0) * ey) / l2 : 0;
+  u = clamp(u, 0, 1);
+  const dx = x0 + ex * u - px, dy = y0 + ey * u - py;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+function buildPredList(sp) {
+  predList.length = 0;
+  const L = Math.min(sp * PRED_T, 24000);
+  const ux = sp > 1 ? ship.vx / sp : 0, uy = sp > 1 ? ship.vy / sp : 0;
+  const ex = ship.x + ux * L, ey = ship.y + uy * L, pad = 3200;
+  const c0x = Math.round((Math.min(ship.x, ex) - pad) / CELL), c1x = Math.round((Math.max(ship.x, ex) + pad) / CELL);
+  const c0y = Math.round((Math.min(ship.y, ey) - pad) / CELL), c1y = Math.round((Math.max(ship.y, ey) + pad) / CELL);
+  for (let cx = c0x; cx <= c1x; cx++) for (let cy = c0y; cy <= c1y; cy++) {
+    const s = getSys(cx, cy);
+    if (s && distSeg(s.x, s.y, ship.x, ship.y, ex, ey) <= 3200) predList.push(s);
+  }
+}
+function predict() {
+  predN = 0; predHit = null;
+  if (state !== 'play') return;
+  let x = ship.x, y = ship.y, vx = ship.vx, vy = ship.vy, t = simT, el = 0;
+  buildPredList(Math.hypot(vx, vy));
+  predXY[0] = x; predXY[1] = y; predN = 1;
+  while (el < PRED_T && predN < PRED_MAX) {
+    const sp = Math.hypot(vx, vy);
+    const dt = Math.min(0.08, Math.max(0.025, 12 / Math.max(sp, 1)));
+    gravity(x, y, t, predList, accOut);
+    vx += accOut.ax * dt; vy += accOut.ay * dt;
+    const nx = x + vx * dt, ny = y + vy * dt;
+    t += dt; el += dt;
+    const hit = segHit(x, y, nx, ny, t, predList);
+    x = nx; y = ny;
+    predXY[predN * 2] = x; predXY[predN * 2 + 1] = y; predN++;
+    if (hit) { predHit = { t: el, x: x, y: y, name: hit.name }; break; }
+  }
+}
+
+/* ---------- effects and camera ---------- */
+function emit(x, y, vx, vy, life, size, col) { particles.push({ x: x, y: y, vx: vx, vy: vy, l: life, m: life, s: size, c: col }); }
+function updateFx(dt) {
+  if (state === 'play') {
+    trailT += dt;
+    if (trailT > 0.05) {
+      trailT = 0; trail.push(ship.x, ship.y);
+      if (trail.length > 600) trail.splice(0, 2);
+    }
+    const hx = ship.hx, hy = ship.hy, px = -hy, py = hx;
+    emitAcc += dt * 90;
+    while (emitAcc >= 1) {
+      emitAcc -= 1;
+      if (burnOn) {
+        const sp = 70 + Math.random() * 60, j = (Math.random() - 0.5) * 24;
+        emit(ship.x - hx * 4, ship.y - hy * 4, ship.vx - hx * sp + px * j, ship.vy - hy * sp + py * j, 0.5 + Math.random() * 0.4, 1.4 + Math.random() * 1.2, '255,170,80');
+      }
+      if (brakeOn) {
+        const sp = 45 + Math.random() * 40;
+        for (let k = -1; k <= 1; k += 2) emit(ship.x + hx * 3 + px * k * 3, ship.y + hy * 3 + py * k * 3, ship.vx + hx * sp + px * k * 12, ship.vy + hy * sp + py * k * 12, 0.35 + Math.random() * 0.25, 1.2 + Math.random(), '150,210,255');
+      }
+    }
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.l -= dt;
+    if (p.l <= 0) { particles.splice(i, 1); continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt;
+  }
+  if (particles.length > 500) particles.splice(0, particles.length - 500);
+
+  const sp = Math.hypot(ship.vx, ship.vy);
+  const zt = clamp(0.55 / (1 + sp / 150), 0.05, 0.55);
+  lz += (Math.log(zt) - lz) * (1 - Math.exp(-dt * 2.5));
+  luzS += (luz - luzS) * (1 - Math.exp(-dt * 8));
+  zoom = Math.exp(lz + luzS);
+  camX = ship.x; camY = ship.y;
+  const k = Math.min(sp / 200, 1) * 0.2 * Math.min(W, Hh);
+  const vs = sp > 1 ? sp : 1;
+  const tx = -(ship.vx / vs) * k;
+  const ty = -(ship.vy / vs) * k + (started ? 0 : -Hh * 0.17);
+  const sm = 1 - Math.exp(-dt * 2);
+  ox += (tx - ox) * sm; oy += (ty - oy) * sm;
+}
+
+/* ---------- rendering ---------- */
+const toSX = (x) => (x - camX) * zoom + W / 2 + ox;
+const toSY = (y) => (y - camY) * zoom + Hh / 2 + oy;
+const STAR_TINT = ['255,255,255', '188,210,255', '255,227,191'];
+const LAYERS = [
+  { tile: 140, f: 0.015, sz: 1, a: 0.55, n: 2 },
+  { tile: 200, f: 0.04, sz: 1.4, a: 0.7, n: 2 },
+  { tile: 300, f: 0.09, sz: 1.8, a: 0.9, n: 1 }
+];
+const NEB = ['42,58,140', '88,44,120', '28,96,110'];
+
+function drawBackdrop() {
+  ctx.fillStyle = '#060812'; ctx.fillRect(0, 0, W, Hh);
+  {
+    const tile = 1200, offx = camX * 0.006, offy = camY * 0.006;
+    const i0 = Math.floor(offx / tile) - 2, i1 = Math.floor((offx + W) / tile) + 2;
+    const j0 = Math.floor(offy / tile) - 2, j1 = Math.floor((offy + Hh) / tile) + 2;
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      if (hf(i, j, 50) > 0.55) continue;
+      const cx = (i + hf(i, j, 51)) * tile - offx, cy = (j + hf(i, j, 52)) * tile - offy;
+      const rad = 380 + hf(i, j, 53) * 420, col = NEB[Math.floor(hf(i, j, 54) * 3)];
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      g.addColorStop(0, 'rgba(' + col + ',0.17)'); g.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.fillStyle = g; ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+    }
+  }
+  for (let L = 0; L < LAYERS.length; L++) {
+    const ly = LAYERS[L], tile = ly.tile, offx = camX * ly.f, offy = camY * ly.f;
+    const i0 = Math.floor(offx / tile) - 1, i1 = Math.floor((offx + W) / tile) + 1;
+    const j0 = Math.floor(offy / tile) - 1, j1 = Math.floor((offy + Hh) / tile) + 1;
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      for (let k = 0; k < ly.n; k++) {
+        const px = (i + hf(i, j, L * 10 + k * 3)) * tile - offx, py = (j + hf(i, j, L * 10 + k * 3 + 1)) * tile - offy;
+        const q = hf(i, j, L * 10 + k * 3 + 2);
+        ctx.fillStyle = 'rgba(' + STAR_TINT[Math.floor(q * 3)] + ',' + (ly.a * (0.35 + q * 0.65)).toFixed(2) + ')';
+        const s = ly.sz * (0.7 + q * 0.6);
+        ctx.fillRect(px, py, s, s);
+      }
+    }
+  }
+}
+
+function drawRanges() {
+  const scx = toSX(START_X), scy = toSY(START_Y);
+  const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+  let step = steps[steps.length - 1];
+  for (let i = 0; i < steps.length; i++) if (steps[i] * AU * zoom >= 90) { step = steps[i]; break; }
+  const stepPx = step * AU * zoom;
+  const dmax = Math.max(Math.hypot(scx, scy), Math.hypot(W - scx, scy), Math.hypot(scx, Hh - scy), Math.hypot(W - scx, Hh - scy));
+  let dmin = 0;
+  if (scx >= 0 && scx <= W && scy >= 0 && scy <= Hh) dmin = 0;
+  else {
+    const cx = clamp(scx, 0, W), cy = clamp(scy, 0, Hh);
+    dmin = Math.hypot(scx - cx, scy - cy);
+  }
+  const k0 = Math.max(1, Math.floor(dmin / stepPx)), k1 = Math.min(k0 + 14, Math.ceil(dmax / stepPx));
+  const dx = ship.x - START_X, dy = ship.y - START_Y, dl = Math.hypot(dx, dy);
+  const ux = dl > 1 ? dx / dl : 1, uy = dl > 1 ? dy / dl : 0;
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(140,165,220,0.10)';
+  ctx.font = '10px "IBM Plex Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  for (let k = k0; k <= k1; k++) {
+    const rp = k * stepPx;
+    ctx.beginPath(); ctx.arc(scx, scy, rp, 0, TAU); ctx.stroke();
+    if (dl > 1) {
+      const lx = toSX(START_X + ux * k * step * AU), ly = toSY(START_Y + uy * k * step * AU);
+      if (lx > 24 && lx < W - 60 && ly > 130 && ly < Hh - 100) {
+        ctx.fillStyle = 'rgba(150,170,215,0.55)';
+        ctx.fillText(k * step + ' AU', lx + 6, ly);
+      }
+    }
+  }
+  const best = Math.max(bestStored, 0);
+  if (best > 600) {
+    ctx.save();
+    ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,210,122,0.38)';
+    ctx.beginPath(); ctx.arc(scx, scy, best * zoom, 0, TAU); ctx.stroke();
+    ctx.restore();
+    if (dl > 1) {
+      const lx = toSX(START_X + ux * best), ly = toSY(START_Y + uy * best);
+      if (lx > 24 && lx < W - 90 && ly > 130 && ly < Hh - 100) {
+        ctx.fillStyle = 'rgba(255,210,122,0.8)'; ctx.fillText('BEST ' + fmtAU(best), lx + 6, ly);
+      }
+    }
+  }
+}
+
+const vis = [];
+function visibleSystems() {
+  vis.length = 0;
+  const rad = Math.hypot(W, Hh) / 2 / zoom + 1400 + Math.hypot(ox, oy) / zoom;
+  const c0x = Math.round((camX - rad) / CELL), c1x = Math.round((camX + rad) / CELL);
+  const c0y = Math.round((camY - rad) / CELL), c1y = Math.round((camY + rad) / CELL);
+  for (let cx = c0x; cx <= c1x; cx++) for (let cy = c0y; cy <= c1y; cy++) {
+    const s = getSys(cx, cy);
+    if (!s) continue;
+    const sx = toSX(s.x), sy = toSY(s.y), m = s.reach * zoom + 40;
+    if (sx > -m && sx < W + m && sy > -m && sy < Hh + m) vis.push(s);
+  }
+}
+
+function drawOrbits() {
+  ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(165,188,235,0.14)';
+  ctx.beginPath();
+  for (let i = 0; i < vis.length; i++) {
+    const s = vis[i];
+    if (!s.star) continue;
+    const sx = toSX(s.x), sy = toSY(s.y);
+    for (let j = 0; j < s.planets.length; j++) {
+      const rr = s.planets[j].orbitR * zoom;
+      if (rr < 3) continue;
+      ctx.moveTo(sx + rr, sy); ctx.arc(sx, sy, rr, 0, TAU);
+    }
+  }
+  ctx.stroke();
+}
+
+function drawStar(s, sx, sy) {
+  const r = Math.max(s.starR * zoom, 2.4), gr = r * 3.4 + 10, L = s.star.look;
+  ctx.globalCompositeOperation = 'lighter';
+  let g = ctx.createRadialGradient(sx, sy, r * 0.5, sx, sy, gr);
+  g.addColorStop(0, 'rgba(' + L.glow + ',0.55)'); g.addColorStop(0.35, 'rgba(' + L.glow + ',0.16)'); g.addColorStop(1, 'rgba(' + L.glow + ',0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, gr, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  g = ctx.createRadialGradient(sx, sy, 0, sx, sy, r);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, L.core); g.addColorStop(1, 'rgb(' + L.glow + ')');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill();
+}
+
+function drawRing(p, sx, sy, r, front) {
+  const rx = r * 1.9, ry = rx * 0.3;
+  ctx.lineWidth = Math.max(1, r * 0.2);
+  ctx.strokeStyle = 'rgba(228,212,186,0.5)';
+  ctx.beginPath(); ctx.ellipse(sx, sy, rx, ry, p.ringTilt, front ? 0 : Math.PI, front ? Math.PI : TAU); ctx.stroke();
+  ctx.strokeStyle = 'rgba(228,212,186,0.28)';
+  ctx.beginPath(); ctx.ellipse(sx, sy, rx * 1.22, ry * 1.22, p.ringTilt, front ? 0 : Math.PI, front ? Math.PI : TAU); ctx.stroke();
+}
+
+function drawPlanet(p, sx, sy, lx, ly) {
+  const r = Math.max(p.R * zoom, 1.3);
+  if (p.R * zoom < 3.5) {
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(205,220,255,0.35)';
+    ctx.beginPath(); ctx.arc(sx, sy, r + 3.5, 0, TAU); ctx.stroke();
+  }
+  if (r < 2.2) { ctx.fillStyle = p.c1; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill(); return; }
+  if (p.ring) drawRing(p, sx, sy, r, false);
+  ctx.fillStyle = p.c2; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill();
+  if (p.bands && r > 5) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.clip();
+    ctx.translate(sx, sy); ctx.rotate(p.bandTilt);
+    const n = 7, hgt = (2 * r) / n;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = p.bands[i % 4]; ctx.globalAlpha = 0.6; ctx.fillRect(-r, -r + i * hgt, r * 2, hgt + 0.5); }
+    ctx.restore();
+  }
+  const g = ctx.createRadialGradient(sx + lx * r * 0.45, sy + ly * r * 0.45, r * 0.05, sx + lx * r * 0.2, sy + ly * r * 0.2, r * 1.35);
+  g.addColorStop(0, 'rgba(255,255,255,0.30)'); g.addColorStop(0.45, 'rgba(255,255,255,0)');
+  g.addColorStop(0.75, 'rgba(4,6,16,0.5)'); g.addColorStop(1, 'rgba(4,6,16,0.9)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill();
+  if (p.ring) drawRing(p, sx, sy, r, true);
+}
+
+function drawBodies() {
+  for (let i = 0; i < vis.length; i++) {
+    const s = vis[i];
+    if (s.star) drawStar(s, toSX(s.x), toSY(s.y));
+  }
+  for (let i = 0; i < vis.length; i++) {
+    const s = vis[i];
+    const scx = toSX(s.x), scy = toSY(s.y);
+    for (let j = 0; j < s.planets.length; j++) {
+      const p = s.planets[j];
+      placePlanet(p, simT);
+      const sx = toSX(p.x), sy = toSY(p.y), m = p.R * zoom * 2.5 + 20;
+      if (sx < -m || sx > W + m || sy < -m || sy > Hh + m) continue;
+      let lx = -0.6, ly = -0.8;
+      if (s.star) {
+        const dx = scx - sx, dy = scy - sy, dl = Math.hypot(dx, dy) || 1;
+        lx = dx / dl; ly = dy / dl;
+      }
+      drawPlanet(p, sx, sy, lx, ly);
+    }
+  }
+}
+
+function drawTrail() {
+  const n = trail.length / 2;
+  if (n < 2) return;
+  const chunks = 6, per = Math.ceil(n / chunks);
+  ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  for (let c = 0; c < chunks; c++) {
+    const a = c * per, b = Math.min(n - 1, a + per);
+    if (a >= b) break;
+    ctx.strokeStyle = 'rgba(230,238,255,' + (0.03 + 0.3 * (c + 1) / chunks).toFixed(2) + ')';
+    ctx.beginPath();
+    ctx.moveTo(toSX(trail[a * 2]), toSY(trail[a * 2 + 1]));
+    for (let i = a + 1; i <= b; i++) ctx.lineTo(toSX(trail[i * 2]), toSY(trail[i * 2 + 1]));
+    ctx.stroke();
+  }
+  ctx.lineTo(toSX(ship.x), toSY(ship.y));
+}
+
+function drawPrediction() {
+  if (predN < 2) return;
+  ctx.save();
+  ctx.setLineDash([3, 6]); ctx.lineWidth = 1.5;
+  ctx.strokeStyle = predHit ? 'rgba(255,107,107,0.75)' : 'rgba(121,215,255,0.55)';
+  ctx.beginPath();
+  ctx.moveTo(toSX(predXY[0]), toSY(predXY[1]));
+  for (let i = 1; i < predN; i++) ctx.lineTo(toSX(predXY[i * 2]), toSY(predXY[i * 2 + 1]));
+  ctx.stroke();
+  ctx.restore();
+  if (predHit) {
+    const x = toSX(predHit.x), y = toSY(predHit.y);
+    ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU); ctx.moveTo(x - 5, y - 5); ctx.lineTo(x + 5, y + 5); ctx.moveTo(x + 5, y - 5); ctx.lineTo(x - 5, y + 5); ctx.stroke();
+  }
+}
+
+function drawParticles() {
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i], a = p.l / p.m;
+    ctx.fillStyle = 'rgba(' + p.c + ',' + a.toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(toSX(p.x), toSY(p.y), p.s * (0.5 + 0.5 * a), 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawShip() {
+  if (state !== 'play') return;
+  const sx = toSX(ship.x), sy = toSY(ship.y);
+  ctx.save();
+  ctx.translate(sx, sy); ctx.rotate(Math.atan2(ship.hy, ship.hx));
+  ctx.strokeStyle = 'rgba(230,238,255,0.22)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(0, 0, 13 + Math.sin(simT * 3) * 1.2, 0, TAU); ctx.stroke();
+  if (burnOn) {
+    const L = 10 + Math.random() * 9;
+    const g = ctx.createLinearGradient(-5, 0, -5 - L, 0);
+    g.addColorStop(0, 'rgba(255,214,150,0.95)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(-4, -3); ctx.lineTo(-5 - L, 0); ctx.lineTo(-4, 3); ctx.closePath(); ctx.fill();
+  }
+  if (brakeOn) {
+    ctx.fillStyle = 'rgba(150,210,255,0.85)';
+    for (let k = -1; k <= 1; k += 2) {
+      const L = 5 + Math.random() * 5;
+      ctx.beginPath(); ctx.moveTo(3, k * 2.4); ctx.lineTo(3 + L, k * 3.2); ctx.lineTo(3, k * 4); ctx.closePath(); ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#f1f5ff'; ctx.strokeStyle = 'rgba(160,190,255,0.9)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(9, 0); ctx.lineTo(-6, 5); ctx.lineTo(-3, 0); ctx.lineTo(-6, -5); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function render() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawBackdrop();
+  drawRanges();
+  visibleSystems();
+  drawOrbits();
+  drawTrail();
+  drawPrediction();
+  drawBodies();
+  drawParticles();
+  drawShip();
+}
+
+/* ---------- hud ---------- */
+function nearestBody() {
+  let best = null, bd = Infinity;
+  for (let i = 0; i < nearList.length; i++) {
+    const s = nearList[i];
+    const dc = Math.hypot(s.x - ship.x, s.y - ship.y);
+    if (s.star) { const d = dc - s.starR; if (d < bd) { bd = d; best = s.star; } }
+    if (dc < s.reach + 800) {
+      for (let j = 0; j < s.planets.length; j++) {
+        const p = s.planets[j];
+        placePlanet(p, simT);
+        const d = Math.hypot(p.x - ship.x, p.y - ship.y) - p.R;
+        if (d < bd) { bd = d; best = p; }
+      }
+    }
+  }
+  return best ? { b: best, d: Math.max(0, bd) } : null;
+}
+function updateHud(dt) {
+  hudT += dt;
+  if (hudT < 0.1) return;
+  hudT = 0;
+  const d = Math.hypot(ship.x - START_X, ship.y - START_Y);
+  elDist.textContent = fmtAU(d);
+  elBest.textContent = fmtAU(Math.max(bestStored, maxDist));
+  elSpd.textContent = Math.round(Math.hypot(ship.vx, ship.vy) * KMS);
+  elFT.textContent = fmtT(flightT);
+  elTop.textContent = Math.round(maxSp * KMS);
+  const nb = nearestBody();
+  if (nb) { const au = nb.d / AU; elNear.textContent = nb.b.name + ' · ' + (au < 0.1 ? au.toFixed(3) : au.toFixed(2)) + ' AU'; }
+  else elNear.textContent = 'Deep space';
+  let bs = null, bf = 0, bd2 = 0;
+  for (let i = 0; i < nearList.length; i++) {
+    const s = nearList[i];
+    if (!s.star) continue;
+    const dx = s.x - ship.x, dy = s.y - ship.y, d2 = dx * dx + dy * dy, f = s.starGM / (d2 + 400);
+    if (f > bf) { bf = f; bs = s; bd2 = d2; }
+  }
+  if (bs && bd2 < FAR2 && state === 'play') {
+    const e = 0.5 * (ship.vx * ship.vx + ship.vy * ship.vy) - bs.starGM * phiAt(Math.sqrt(bd2));
+    elTraj.textContent = (e < 0 ? 'Bound to ' : 'Escaping ') + bs.star.name;
+    elTraj.className = 'sub' + (e < 0 ? '' : ' esc');
+  } else { elTraj.textContent = ''; elTraj.className = 'sub'; }
+  if (state === 'play' && predHit && predHit.t < 40) {
+    warn.hidden = false;
+    tti.textContent = predHit.t.toFixed(1); wname.textContent = predHit.name;
+    warn.classList.toggle('hot', predHit.t < 10);
+  } else warn.hidden = true;
+}
+
+/* ---------- input ---------- */
+const btns = document.querySelectorAll('.btn');
+btns.forEach((b) => {
+  const act = b.dataset.act;
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { b.setPointerCapture(e.pointerId); } catch (err) {}
+    tc[act] = true; begin();
+  });
+  const up = () => { tc[act] = false; };
+  b.addEventListener('pointerup', up);
+  b.addEventListener('pointercancel', up);
+  b.addEventListener('lostpointercapture', up);
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+});
+/* zoom: wheel, +/- keys, two-finger pinch */
+const ZMIN = Math.log(0.4), ZMAX = Math.log(3);
+const setZoom = (v) => { luz = clamp(v, ZMIN, ZMAX); };
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); setZoom(luz - e.deltaY * 0.0015); }, { passive: false });
+const ptrs = new Map();
+let pinch0 = 0;
+function pinchDist() {
+  const a = Array.from(ptrs.values());
+  return a.length < 2 ? 0 : Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]);
+}
+canvas.addEventListener('pointerdown', (e) => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); if (ptrs.size === 2) pinch0 = pinchDist(); });
+canvas.addEventListener('pointermove', (e) => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 2) {
+    const d = pinchDist();
+    if (pinch0 > 0 && d > 0) setZoom(luz + Math.log(d / pinch0));
+    pinch0 = d;
+  }
+});
+const dropPtr = (e) => { ptrs.delete(e.pointerId); pinch0 = 0; };
+canvas.addEventListener('pointerup', dropPtr);
+canvas.addEventListener('pointercancel', dropPtr);
+const KEYMAP = { ArrowUp: 'burn', KeyW: 'burn', Space: 'burn', ArrowDown: 'brake', KeyS: 'brake', ShiftLeft: 'brake', ShiftRight: 'brake' };
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Equal' || e.code === 'NumpadAdd') { setZoom(luz + 0.2); return; }
+  if (e.code === 'Minus' || e.code === 'NumpadSubtract') { setZoom(luz - 0.2); return; }
+  if (state === 'crashed') {
+    if (!e.repeat && overReady && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyR')) { e.preventDefault(); reset(); }
+    return;
+  }
+  if (e.code === 'Enter' && !started) { begin(); return; }
+  const a = KEYMAP[e.code];
+  if (a) { e.preventDefault(); kb[a] = true; begin(); }
+});
+window.addEventListener('keyup', (e) => { const a = KEYMAP[e.code]; if (a) kb[a] = false; });
+function releaseAll() { for (const k in kb) { kb[k] = false; tc[k] = false; } }
+window.addEventListener('blur', releaseAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { releaseAll(); keepBests(); } });
+$('launch').addEventListener('click', (e) => { e.currentTarget.blur(); begin(); });
+$('retry').addEventListener('click', (e) => { e.currentTarget.blur(); if (overReady) reset(); });
+
+/* ---------- main loop ---------- */
+let lastT = performance.now(), accT = 0, frameN = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000 || 0);
+  lastT = now;
+  inp.burn = kb.burn || tc.burn; inp.brake = kb.brake || tc.brake;
+  inp.left = kb.left || tc.left; inp.right = kb.right || tc.right;
+  btns.forEach((b) => b.classList.toggle('on', !!inp[b.dataset.act]));
+  accT += dt;
+  let n = 0;
+  while (accT >= STEP && n < 8) { simStep(STEP); accT -= STEP; n++; }
+  if (n >= 8) accT = 0;
+  if (cache.size > 6000) { cache.clear(); nearCX = NaN; nearCY = NaN; }
+  updateFx(dt);
+  if ((frameN++ & 1) === 0) predict();
+  render();
+  updateHud(dt);
+  fuelFill.style.transform = 'scaleX(' + (fuel / FUEL_MAX).toFixed(3) + ')';
+  fuelTxt.textContent = fuel.toFixed(1) + ' s';
+  fuelBox.classList.toggle('empty', fuel <= 0.01);
+  fuelBox.classList.toggle('wait', fuel > 0.01 && fuel < FUEL_MAX && !(inp.burn || inp.brake) && restT < FUEL_DELAY);
+  requestAnimationFrame(frame);
+}
+
+reset();
+zoom = Math.exp(lz);
+elBest.textContent = fmtAU(bestStored);
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>

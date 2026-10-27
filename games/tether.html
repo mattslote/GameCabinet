@@ -1,0 +1,670 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tether</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one full-height portrait stage. Canvas draws the world, DOM draws score and cards.
+     Single committed look: sunny graph paper, ink pegs, one hot ball. */
+  :root {
+    --sun: #ffd23f;
+    --grid: #f3be22;
+    --ink: #1b1730;
+    --ball: #ff4b2b;
+    --paper: #fff6d6;
+    --spike: #6a2bff;
+    --display: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: light;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--sun);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 500;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #app {
+    position: relative;
+    height: 100%;
+    max-width: 480px;
+    margin-inline: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+  #c { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 14px 16px 0;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    pointer-events: none;
+  }
+  .score {
+    font: 800 76px/0.9 var(--display);
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+  .streak {
+    margin-top: 8px;
+    display: inline-block;
+    background: var(--ink); color: var(--sun);
+    font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 4px 8px;
+  }
+  .side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .best { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; padding-top: 6px; }
+  .best b { font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; }
+  #mute {
+    pointer-events: auto; cursor: pointer;
+    font: inherit; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink); background: transparent;
+    border: 2px solid var(--ink); padding: 5px 9px; min-height: 32px;
+  }
+  #mute:focus-visible, .card:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+  .card {
+    position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    box-shadow: 6px 6px 0 var(--ink);
+    padding: 18px 18px 0;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow: hidden;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand svg { flex: none; width: 56px; height: 56px; }
+  .orbiter { transform-origin: 28px 28px; animation: spin 1.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 {
+    margin: 0; font: 800 58px/0.9 var(--display); letter-spacing: -0.045em; text-wrap: balance;
+  }
+  .how { margin: 0; font-size: 14px; line-height: 1.5; max-width: 34ch; }
+  .tips {
+    margin: 0; padding: 0; list-style: none;
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 12px; line-height: 1.4;
+  }
+  .tips li { display: flex; gap: 10px; align-items: baseline; }
+  .tips i {
+    flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); transform: translateY(1px);
+  }
+  .tips i.s { background: var(--spike); border-radius: 2px; transform: translateY(1px) rotate(45deg); }
+  .tips i.q { background: var(--ball); }
+  .cta {
+    margin: 6px -18px 0;
+    background: var(--ink); color: var(--sun);
+    padding: 15px 18px;
+    font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase;
+    animation: nudge 1.4s ease-in-out infinite;
+  }
+  @keyframes nudge { 50% { padding-left: 26px; } }
+
+  #over .label { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; }
+  #over .big { font: 800 112px/0.85 var(--display); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+  #over .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+  #over .row b { font-weight: 500; font-size: 18px; font-variant-numeric: tabular-nums; }
+  #newbest { background: var(--ball); color: var(--paper); padding: 3px 8px; font-size: 11px; letter-spacing: 0.12em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .orbiter, .cta { animation: none; }
+  }
+  @media (max-height: 600px) {
+    h1 { font-size: 44px; }
+    .tips { display: none; }
+    #over .big { font-size: 80px; }
+  }
+</style>
+
+<div id="app">
+  <canvas id="c"></canvas>
+
+  <div class="hud" id="hud" hidden>
+    <div>
+      <div class="score" id="score">0</div>
+      <div class="streak" id="streak" hidden></div>
+    </div>
+    <div class="side">
+      <div class="best">Best <b id="best">0</b></div>
+      <button id="mute" type="button">Sound on</button>
+    </div>
+  </div>
+
+  <section class="card" id="intro" tabindex="-1">
+    <div class="brand">
+      <svg viewBox="0 0 56 56" aria-hidden="true">
+        <circle cx="28" cy="28" r="20" fill="none" stroke="#1b1730" stroke-width="2.5" stroke-dasharray="4 5"/>
+        <circle cx="28" cy="28" r="6" fill="#1b1730"/>
+        <g class="orbiter"><circle cx="48" cy="28" r="6" fill="#ff4b2b" stroke="#1b1730" stroke-width="2.5"/></g>
+      </svg>
+      <h1>Tether</h1>
+    </div>
+    <p class="how">Your ball circles a peg. Tap to let go, then catch the next peg before the screen leaves you behind.</p>
+    <ul class="tips">
+      <li><i class="q"></i><span>Throw within a second of landing to build a streak. Streaks multiply points.</span></li>
+      <li><i></i><span>Don't linger. After half a lap the orbit tightens, then the peg vanishes.</span></li>
+      <li><i class="s"></i><span>Gravity is one third of Earth's, so throws arc. The dots show your path.</span></li>
+    </ul>
+    <div class="cta">Tap to start</div>
+  </section>
+
+  <section class="card" id="over" tabindex="-1" hidden>
+    <div class="label">Dropped</div>
+    <div class="big" id="finalScore">0</div>
+    <div class="row"><span>Best <b id="finalBest">0</b></span><span id="newbest" hidden>New best</span></div>
+    <div class="cta">Tap to go again</div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var cv = document.getElementById('c');
+  var ctx = cv.getContext('2d');
+  var hud = document.getElementById('hud');
+  var scoreEl = document.getElementById('score');
+  var streakEl = document.getElementById('streak');
+  var bestEl = document.getElementById('best');
+  var muteBtn = document.getElementById('mute');
+  var intro = document.getElementById('intro');
+  var overCard = document.getElementById('over');
+  var finalScore = document.getElementById('finalScore');
+  var finalBest = document.getElementById('finalBest');
+  var newBestEl = document.getElementById('newbest');
+
+  var INK = '#1b1730', BG = '#ffd23f', GRID = '#f3be22', BALLC = '#ff4b2b', SPIKE = '#6a2bff';
+  var BASEW = 360, W = 360, H = 640, scale = 1, dpr = 1;
+  var baseScale = 1, cssW = 360, cssH = 640, zoom = 1;
+  // 100 world units = 1 m, so one third of Earth gravity (9.8 / 3 = 3.27 m/s^2) is 327 units/s^2
+  var BALL = 9, GRAV = 327;
+  var LAUNCH_BOOST = 1.25; // the ball leaves 1.25x faster than it orbits
+
+  // Everything below is keyed to c, the number of pegs caught so far.
+  function zoomFor(c) { return 1 - Math.min(c, 50) / 50 * 0.4; }
+  // Difficulty runs on the clock. playT is seconds since the first throw and diff() is 0 at the start and 1 at 150 s,
+  // the point where even a very good player (about 1.2 s per peg) can no longer keep up with the rising screen.
+  var playT = 0;
+  function diff(t) { return t / 150; }
+  // How fast the screen climbs, in units/s: 20 at the start, 180 at 150 s. A very good player climbs about
+  // 165 units/s (a ~200-unit gap every 1.2 s) and an average one about 90 (every 2.2 s).
+  function riseFor(t) { return 20 + 160 * diff(t); }
+  // Orbits stay 84 units wide for 90 s, then shrink toward 34.
+  function orbitRt(t) { return t <= 90 ? 84 : Math.max(34, 84 - (t - 90) * 0.37); }
+  // Spin in rad/s. The first lap takes 1.6 s (3.93 rad/s) and the spin climbs to about 6.1 by 150 s.
+  // Orbit speed = spin * radius, which is 3.3 m/s at the start. While an orbit tightens, speed holds and spin rises.
+  function spinFor(t) { return 2 * Math.PI / 1.6 + 2.2 * Math.min(diff(t), 1.2); }
+  // Laps spent shrinking before the peg vanishes: 5 at the start, 2.2 at 150 s.
+  function shrinkLapsFor(t) { return Math.max(2.2, 5 - 2.8 * diff(t)); }
+
+  var state = 'ready', canRetry = false;
+  var pegs, ball, trail, parts, pops;
+  var camTop, shake, score, best = 0, caps, streak, lastX, lastX2, lastY, genCount, started, minPegY, newBest, time = 0;
+
+  try { best = parseInt(localStorage.getItem('tether-best'), 10) || 0; } catch (e) {}
+  var muted = false;
+  try { muted = localStorage.getItem('tether-muted') === '1'; } catch (e) {}
+  bestEl.textContent = best;
+  muteBtn.textContent = muted ? 'Sound off' : 'Sound on';
+
+  /* ---------- audio ---------- */
+  var ac = null;
+  function audio() {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    if (ac && ac.state === 'suspended') { try { ac.resume(); } catch (e) {} }
+  }
+  function tone(f, t, type, vol, slide) {
+    if (muted || !ac) return;
+    try {
+      var o = ac.createOscillator(), g = ac.createGain(), n = ac.currentTime;
+      o.type = type;
+      o.frequency.setValueAtTime(f, n);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), n + t);
+      g.gain.setValueAtTime(vol, n);
+      g.gain.exponentialRampToValueAtTime(0.0001, n + t);
+      o.connect(g); g.connect(ac.destination);
+      o.start(n); o.stop(n + t + 0.03);
+    } catch (e) {}
+  }
+  var NOTES = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+  function sfxCatch(s) { tone(392 * Math.pow(2, NOTES[Math.min(s, NOTES.length - 1)] / 12), 0.2, 'triangle', 0.2); }
+  function sfxThrow() { tone(520, 0.12, 'square', 0.05, 1.8); }
+  function sfxBounce() { tone(220, 0.07, 'triangle', 0.08); }
+  function sfxDie() { tone(300, 0.5, 'sawtooth', 0.12, 0.2); }
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+
+  muteBtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+  muteBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    muted = !muted;
+    muteBtn.textContent = muted ? 'Sound off' : 'Sound on';
+    try { localStorage.setItem('tether-muted', muted ? '1' : '0'); } catch (err) {}
+  });
+
+  /* ---------- helpers ---------- */
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  function resize() {
+    var r = app.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.max(1, Math.round(r.width * dpr));
+    cv.height = Math.max(1, Math.round(r.height * dpr));
+    cssW = r.width; cssH = r.height;
+    baseScale = r.width / BASEW;
+    applyZoom();
+  }
+
+  // Zooming out shows more world, and the walls stay at the screen edges: W is the field width in world units,
+  // centered on BASEW / 2.
+  function applyZoom() {
+    scale = baseScale * zoom;
+    H = cssH / scale;
+    W = cssW / scale;
+  }
+
+  /* ---------- world ---------- */
+  function spawnNext() {
+    // pegs are built about 15 s before the player reaches them, so size them for that later moment
+    var tEst = playT + 15;
+    var lvl = Math.min(diff(tEst), 1);
+    var rr = orbitRt(tEst);
+    // field width the player will have by the time they reach this peg
+    var Ws = BASEW / zoomFor(Math.max(0, genCount - 10));
+    var cx = BASEW / 2;
+    var xmin = cx - Ws / 2 + rr + BALL + 4, xmax = cx + Ws / 2 - rr - BALL - 4;
+    // farthest sideways hop the current launch speed can still reach
+    var v = spinFor(tEst) * rr * LAUNCH_BOOST;
+    var maxDist = rr + 0.8 * v * v / GRAV;
+    var minD = 2.05 * rr;
+    var maxDx = Math.sqrt(Math.max(0, maxDist * maxDist - (minD + 60) * (minD + 60)));
+    // Pick x uniformly over every spot that is reachable and at least minDx sideways from the last peg,
+    // so pegs never stack in a column and never pile up against a wall.
+    var x, ddx, dy, y, clear, attempt = 0;
+    // zooming out would pack more rings on screen, so stretch the gaps to keep the density steady
+    var mult = 1 + 0.25 * (1 - zoomFor(Math.max(0, genCount - 10))) / 0.4;
+    for (;;) {
+    var tries = 0;
+    do {
+      var lo = Math.max(xmin, lastX - maxDx), hi = Math.min(xmax, lastX + maxDx);
+      var minDx = Math.min(60, (hi - lo) / 5);
+      var Lw = Math.max(0, lastX - minDx - lo), Rw = Math.max(0, hi - lastX - minDx);
+      if (Lw + Rw < 1) x = clamp(lastX + (Math.random() < 0.5 ? -1 : 1) * minDx, xmin, xmax);
+      else { var t0 = Math.random() * (Lw + Rw); x = t0 < Lw ? lo + t0 : lastX + minDx + (t0 - Lw); }
+      tries++;
+    } while (tries < 6 && Math.abs(x - lastX2) < 45);
+    ddx = x - lastX;
+    dy = (Math.sqrt(Math.max(0, minD * minD - ddx * ddx)) + rnd(rr * 0.3, rr * 0.3 + 30 + lvl * 40)) * mult;
+    y = lastY - dy;
+    // no ring may overlap any other ring
+    clear = true;
+    for (var qi = 0; qi < pegs.length; qi++) {
+      var pq = pegs[qi];
+      if (pq.haz) continue;
+      if (Math.hypot(pq.x - x, pq.y - y) < pq.r + rr + 6) { clear = false; break; }
+    }
+    if (clear || ++attempt >= 10) break;
+    }
+    if (!clear) { dy += 2 * rr; y = lastY - dy; }
+    var prevY = lastY;
+    pegs.push({ x: x, y: y, haz: false, scored: false, r: rr });
+    // spikes: none at first, about 1 gap in 3 at 75 s, 1 in 2 by 135 s
+    if (Math.random() < Math.min(0.5, Math.max(0, diff(tEst) - 0.05) * 0.7)) {
+      for (var t = 0; t < 8; t++) {
+        var hx = rnd(cx - Ws / 2 + 34, cx + Ws / 2 - 34), hy = rnd(y + 20, prevY - 20), ok = true;
+        for (var i = 0; i < pegs.length; i++) {
+          var p = pegs[i], d = Math.hypot(p.x - hx, p.y - hy);
+          if ((!p.haz && d < p.r + 26) || (p.haz && d < 60)) { ok = false; break; }
+        }
+        if (ok) {
+          pegs.push({ x: hx, bx: hx, y: hy, haz: true, amp: diff(tEst) > 0.4 ? rnd(14, 40) : 0, sp: rnd(1.2, 2.2), ph: rnd(0, 6.28) });
+          break;
+        }
+      }
+    }
+    lastX2 = lastX; lastX = x; lastY = y; genCount++;
+  }
+
+  function orbitPos() {
+    ball.x = ball.peg.x + Math.cos(ball.a) * ball.r;
+    ball.y = ball.peg.y + Math.sin(ball.a) * ball.r;
+  }
+
+  function reset() {
+    pegs = []; parts = []; pops = []; trail = [];
+    camTop = 0; shake = 0; score = 0; caps = 0; streak = 0; genCount = 0; started = false; newBest = false;
+    zoom = 1; applyZoom(); playT = 0;
+    var p0 = { x: BASEW / 2, y: H * 0.72, haz: false, scored: true, r: orbitRt(0) };
+    pegs.push(p0);
+    lastX = p0.x; lastX2 = p0.x; lastY = p0.y; minPegY = p0.y;
+    ball = { mode: 'orbit', peg: p0, a: Math.PI, dir: 1, x: 0, y: 0, vx: 0, vy: 0, capT: -999, quick: false,
+             r: p0.r, laps: 0, v0: spinFor(0) * p0.r, out: true,
+             shrink: shrinkLapsFor(0), endLaps: 0.5 + shrinkLapsFor(0) };
+    orbitPos();
+    while (lastY > camTop - 700) spawnNext();
+    updateHud();
+  }
+
+  function updateHud() {
+    scoreEl.textContent = score;
+    if (streak >= 2 && state === 'play') {
+      streakEl.hidden = false;
+      streakEl.textContent = 'Streak x' + streak;
+    } else {
+      streakEl.hidden = true;
+    }
+  }
+
+  function burst(x, y, n, col, sp) {
+    for (var i = 0; i < n; i++) {
+      var a = rnd(0, 6.283), s = rnd(40, sp);
+      parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(0.3, 0.7), max: 0.7, col: col, r: rnd(2, 4.5) });
+    }
+  }
+
+  // auto = true when the orbit runs out and the peg vanishes, letting go of the ball
+  function launch(auto) {
+    var s = Math.sin(ball.a), c = Math.cos(ball.a);
+    var v = ball.v0 * LAUNCH_BOOST;
+    ball.vx = -s * ball.dir * v;
+    ball.vy = c * ball.dir * v;
+    ball.mode = 'fly';
+    ball.out = false;
+    ball.quick = !auto && (time - ball.capT) < 1.1;
+    started = true;
+    if (auto) {
+      ball.peg.dead = true;
+      sfxBounce();
+      burst(ball.peg.x, ball.peg.y, 14, INK, 160);
+    } else {
+      sfxThrow();
+    }
+    buzz(8);
+  }
+
+  function capture(p) {
+    var rx = ball.x - p.x, ry = ball.y - p.y;
+    ball.dir = (rx * ball.vy - ry * ball.vx) >= 0 ? 1 : -1;
+    ball.a = Math.atan2(ry, rx);
+    ball.peg = p;
+    ball.r = p.r;
+    ball.laps = 0;
+    ball.mode = 'orbit';
+    ball.capT = time;
+    orbitPos();
+    if (!p.scored) {
+      p.scored = true;
+      caps++;
+      streak = ball.quick ? streak + 1 : 0;
+      var pts = 1 + Math.min(streak, 5);
+      score += pts;
+      minPegY = Math.min(minPegY, p.y);
+      pops.push({ x: p.x, y: p.y - 26, text: '+' + pts, life: 0.8, big: pts > 1 });
+      burst(p.x, p.y, 10 + pts * 2, pts > 1 ? BALLC : INK, 150 + pts * 20);
+      sfxCatch(streak);
+      buzz(12);
+    } else {
+      streak = 0;
+      sfxCatch(0);
+    }
+    ball.v0 = spinFor(playT) * p.r;
+    ball.shrink = shrinkLapsFor(playT);
+    ball.endLaps = 0.5 + ball.shrink;
+    updateHud();
+  }
+
+  function die() {
+    if (state !== 'play') return;
+    state = 'over';
+    canRetry = false;
+    burst(ball.x, clamp(ball.y, camTop, camTop + H), 28, BALLC, 280);
+    shake = 14;
+    sfxDie();
+    buzz(40);
+    if (score > best) {
+      best = score; newBest = true;
+      try { localStorage.setItem('tether-best', String(best)); } catch (e) {}
+    }
+    ball.mode = 'dead';
+    streakEl.hidden = true;
+    setTimeout(function () {
+      finalScore.textContent = score;
+      finalBest.textContent = best;
+      newBestEl.hidden = !newBest;
+      bestEl.textContent = best;
+      hud.hidden = true;
+      overCard.hidden = false;
+      canRetry = true;
+    }, 450);
+  }
+
+  function startRun() {
+    reset();
+    state = 'play';
+    intro.hidden = true;
+    overCard.hidden = true;
+    hud.hidden = false;
+    updateHud();
+  }
+
+  /* ---------- input ---------- */
+  function tap() {
+    audio();
+    if (state === 'ready') { startRun(); return; }
+    if (state === 'over') { if (canRetry) startRun(); return; }
+    if (state === 'play' && ball.mode === 'orbit') launch();
+  }
+  app.addEventListener('pointerdown', function (e) {
+    if (e.target.closest && e.target.closest('button')) return;
+    e.preventDefault();
+    tap();
+  });
+  app.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp') { e.preventDefault(); if (!e.repeat) tap(); }
+  });
+  window.addEventListener('resize', resize);
+
+  /* ---------- update ---------- */
+  function pushTrail() {
+    trail.push({ x: ball.x, y: ball.y });
+    if (trail.length > 16) trail.shift();
+  }
+
+  function update(dt) {
+    var zt = zoomFor(caps);
+    zoom += (zt - zoom) * Math.min(1, dt * 1.5);
+    applyZoom();
+
+    if (state === 'ready') {
+      ball.a += ball.dir * (ball.v0 / ball.r) * dt; orbitPos(); pushTrail();
+    } else if (state === 'play') {
+      if (started) { playT += dt; camTop -= riseFor(playT) * dt; }
+      var target = minPegY - H * 0.6;
+      if (target < camTop) camTop += (target - camTop) * Math.min(1, dt * 4);
+      while (lastY > camTop - 700) spawnNext();
+      for (var i = pegs.length - 1; i >= 0; i--) {
+        var p = pegs[i];
+        if (p.y > camTop + H + 220 && p !== ball.peg) { pegs.splice(i, 1); continue; }
+        if (p.haz && p.amp) p.x = p.bx + Math.sin(time * p.sp + p.ph) * p.amp;
+      }
+
+      if (ball.mode === 'orbit') {
+        // speed stays constant, so spin rises as the orbit tightens
+        var da = ball.dir * (ball.v0 / ball.r) * dt;
+        ball.a += da;
+        ball.laps += Math.abs(da) / 6.2832;
+        // half a lap at full size, then the orbit shrinks; the peg vanishes when the shrinking laps run out
+        var sh = ball.laps - 0.5;
+        ball.r = sh <= 0 ? ball.peg.r : ball.peg.r * Math.max(0.15, 1 - 0.85 * sh / ball.shrink);
+        orbitPos();
+        pushTrail();
+        if (ball.laps >= ball.endLaps) launch(true);
+      } else if (ball.mode === 'fly') {
+        var spd = Math.hypot(ball.vx, ball.vy) + GRAV * dt;
+        var steps = Math.max(1, Math.ceil(spd * dt / 4)), sub = dt / steps;
+        for (var s = 0; s < steps && ball.mode === 'fly' && state === 'play'; s++) {
+          ball.vy += GRAV * sub;
+          ball.x += ball.vx * sub; ball.y += ball.vy * sub;
+          var wl = BASEW / 2 - W / 2 + BALL, wr = BASEW / 2 + W / 2 - BALL;
+          if (ball.x < wl) { ball.x = wl; ball.vx = -ball.vx; sfxBounce(); burst(ball.x, ball.y, 4, INK, 80); }
+          else if (ball.x > wr) { ball.x = wr; ball.vx = -ball.vx; sfxBounce(); burst(ball.x, ball.y, 4, INK, 80); }
+          for (var j = 0; j < pegs.length; j++) {
+            var q = pegs[j], d2 = (q.x - ball.x) * (q.x - ball.x) + (q.y - ball.y) * (q.y - ball.y);
+            if (q.haz) {
+              if (d2 < (BALL + 12) * (BALL + 12)) { die(); break; }
+            } else if (q === ball.peg && !ball.out) {
+              // the peg you just left can't grab you back until you are clear of its ring
+              if (d2 > q.r * q.r) ball.out = true;
+            } else if (d2 <= q.r * q.r && !q.dead) { capture(q); break; }
+          }
+        }
+        pushTrail();
+      }
+      if (state === 'play' && ball.y > camTop + H + BALL) die();
+    }
+
+    for (var k = parts.length - 1; k >= 0; k--) {
+      var pt = parts[k];
+      pt.life -= dt;
+      if (pt.life <= 0) { parts.splice(k, 1); continue; }
+      pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+      pt.vx *= 0.96; pt.vy *= 0.96;
+    }
+    for (var m = pops.length - 1; m >= 0; m--) {
+      pops[m].life -= dt; pops[m].y -= 30 * dt;
+      if (pops[m].life <= 0) pops.splice(m, 1);
+    }
+    if (shake > 0) shake = Math.max(0, shake - 40 * dt);
+    if (state === 'over' && trail.length) trail.shift();
+  }
+
+  /* ---------- draw ---------- */
+  function drawSpike(x, y, rot) {
+    ctx.beginPath();
+    for (var i = 0; i < 16; i++) {
+      var a = rot + i * Math.PI / 8, r = (i % 2 === 0) ? 18 : 10;
+      var px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = SPIKE; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.stroke();
+  }
+
+  function draw() {
+    var sx = shake > 0.1 ? (Math.random() - 0.5) * shake : 0;
+    var sy = shake > 0.1 ? (Math.random() - 0.5) * shake : 0;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = BG;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    var xl = BASEW / 2 - W / 2;
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, (sx - xl * scale) * dpr, (sy - camTop * scale) * dpr);
+
+    // graph paper
+    ctx.lineWidth = 1.5; ctx.strokeStyle = GRID; ctx.beginPath();
+    for (var gx = Math.ceil(xl / 60) * 60; gx < xl + W; gx += 60) { ctx.moveTo(gx, camTop - 2); ctx.lineTo(gx, camTop + H + 2); }
+    for (var gy = Math.floor(camTop / 60) * 60; gy <= camTop + H + 60; gy += 60) { ctx.moveTo(xl, gy); ctx.lineTo(xl + W, gy); }
+    ctx.stroke();
+
+    // rings and pegs
+    for (var i = 0; i < pegs.length; i++) {
+      var p = pegs[i];
+      if (p.y < camTop - 80 || p.y > camTop + H + 80) continue;
+      if (p.dead) continue;
+      if (p.haz) { drawSpike(p.x, p.y, time * 0.8 + i); continue; }
+      var cur = (p === ball.peg && ball.mode === 'orbit');
+      if (cur && ball.r < p.r - 1) {
+        // ghost of the full-size orbit while it tightens
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832);
+        ctx.setLineDash([4, 8]); ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.globalAlpha = 0.18;
+        ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
+      ctx.beginPath(); ctx.arc(p.x, p.y, cur ? ball.r : p.r, 0, 6.2832);
+      ctx.strokeStyle = INK;
+      if (cur) { ctx.setLineDash([]); ctx.lineWidth = 2.5; ctx.globalAlpha = 0.9 * (ball.laps > ball.endLaps - 1 ? Math.max(0.2, ball.endLaps - ball.laps) : 1); }
+      else { ctx.setLineDash([5, 7]); ctx.lineWidth = 2; ctx.globalAlpha = p.scored ? 0.14 : 0.38; }
+      ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, cur ? 9 : 7, 0, 6.2832);
+      ctx.fillStyle = INK; ctx.fill();
+    }
+
+    // aim line
+    if (ball.mode === 'orbit' && (state === 'ready' || state === 'play')) {
+      var av = ball.v0 * LAUNCH_BOOST;
+      var ax = ball.x, ay = ball.y, avx = -Math.sin(ball.a) * ball.dir * av, avy = Math.cos(ball.a) * ball.dir * av, ah = 1 / 60;
+      ctx.fillStyle = INK;
+      for (var an = 0; an < 48; an++) {
+        avy += GRAV * ah; ax += avx * ah; ay += avy * ah;
+        if (ax < xl + BALL) { ax = xl + BALL; avx = -avx; } else if (ax > xl + W - BALL) { ax = xl + W - BALL; avx = -avx; }
+        if (an % 3 === 2) {
+          ctx.globalAlpha = 0.5 * (1 - an / 48);
+          ctx.beginPath(); ctx.arc(ax, ay, 2.5, 0, 6.2832); ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // trail and ball
+    if (ball.mode !== 'dead') {
+      for (var t = 0; t < trail.length; t++) {
+        var f = t / trail.length;
+        ctx.globalAlpha = f * 0.55;
+        ctx.beginPath(); ctx.arc(trail[t].x, trail[t].y, BALL * f * 0.85, 0, 6.2832);
+        ctx.fillStyle = BALLC; ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL, 0, 6.2832);
+      ctx.fillStyle = BALLC; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+    }
+
+    // particles
+    for (var k = 0; k < parts.length; k++) {
+      var pt = parts[k];
+      ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+      ctx.fillStyle = pt.col;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // score pops
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (var m = 0; m < pops.length; m++) {
+      var o = pops[m];
+      ctx.globalAlpha = Math.min(1, o.life * 2.5);
+      ctx.font = '800 ' + (o.big ? 26 : 20) + 'px "Bricolage Grotesque", system-ui, sans-serif';
+      ctx.fillStyle = o.big ? BALLC : INK;
+      ctx.lineWidth = 4; ctx.strokeStyle = BG; ctx.lineJoin = 'round';
+      ctx.strokeText(o.text, o.x, o.y); ctx.fillText(o.text, o.x, o.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---------- loop ---------- */
+  var last = performance.now();
+  document.addEventListener('visibilitychange', function () { last = performance.now(); });
+  function frame(now) {
+    var dt = (now - last) / 1000; last = now;
+    if (dt > 1 / 20) dt = 1 / 20;
+    if (dt < 0) dt = 0;
+    time += dt;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  reset();
+  if (document.fonts && document.fonts.ready) { /* canvas text picks the face up once loaded */ }
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body></html>
