@@ -144,6 +144,11 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-
 .btn.primary { color: var(--plate); background: var(--amber); border-color: var(--amber); }
 .btn.sm { font-size: 19px; padding: 0 6px; letter-spacing: .03em; }
 .card.wide { width: min(100%, 420px); }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badges span { font-family: var(--display); font-weight: 900; font-size: 20px; letter-spacing: .05em; text-transform: uppercase; color: var(--plate); background: var(--amber); padding: 4px 10px; }
+.ach { display: flex; flex-wrap: wrap; gap: 6px; }
+.ach span { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; padding: 5px 8px; border: 1.5px solid var(--line-dim); color: var(--ink-dim); }
+.ach span.on { color: var(--plate); background: var(--amber); border-color: var(--amber); }
 .stagelist { display: flex; flex-direction: column; gap: 6px; }
 .stg {
   display: flex; align-items: center; gap: 12px;
@@ -370,6 +375,7 @@ function tapWorld(w, px, py) {
   b.vy = Math.max(b.vy, 0) * .4 + TAP_POWER * (1 + COMBO_GAIN * w.combo);
   var sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
   if (sp > MAXV) { b.vx *= MAXV / sp; b.vy *= MAXV / sp; }
+  w.lastTapX = b.x;
   w.started = true; w.bounces++;
   return true;
 }
@@ -395,15 +401,17 @@ var cv = $('cv'), ctx = cv.getContext('2d'), court = $('court'), stage = $('stag
 var ov = $('ov'), card = $('card'), elLvl = $('lvl'), elTime = $('time'), elBn = $('bn'), elBest = $('best');
 var S = 1;
 
-var store = { t: [], b: [], st: [] };
+var store = { t: [], b: [], st: [], ach: { one: 0, down: 0, fire: 0 } };
 try {
   var raw = JSON.parse(localStorage.getItem('dribble.v2'));
-  if (raw && Array.isArray(raw.t) && Array.isArray(raw.b)) store = { t: raw.t, b: raw.b, st: Array.isArray(raw.st) ? raw.st : [] };
+  if (raw && Array.isArray(raw.t) && Array.isArray(raw.b)) store = { t: raw.t, b: raw.b, st: Array.isArray(raw.st) ? raw.st : [], ach: { one: +(raw.ach && raw.ach.one) || 0, down: +(raw.ach && raw.ach.down) || 0, fire: +(raw.ach && raw.ach.fire) || 0 } };
 } catch (e) {}
 function save() { try { localStorage.setItem('dribble.v2', JSON.stringify(store)); } catch (e) {} }
 
 var li = 0, w = null, st = 'intro', run = [], parts = [], ripples = [], flash = null, scoredTimer = 0, hintOn = true;
 var last = 0, acc = 0, shownTime = '', shownBn = -1;
+var streak = 0, lastBadges = [], popups = [], flames = [], scoreHold = 1;
+var FIRE_AT = 3, FIRE_TAPS = 3;
 
 /* ---------- Sound ---------- */
 var actx = null, muted = false;
@@ -429,6 +437,8 @@ function sfx(type, v) {
     else if (type === 'wall') blip(300, 200, .05, Math.min(.12, v / 4500), 'triangle');
     else if (type === 'rim') blip(720, 520, .12, .13, 'triangle');
     else if (type === 'board') blip(420, 300, .08, .13, 'triangle');
+    else if (type === 'badge') { blip(784, 784, .12, .15, 'triangle', .5); blip(988, 988, .12, .15, 'triangle', .62); blip(1319, 1319, .26, .17, 'triangle', .74); }
+    else if (type === 'out') blip(300, 70, .35, .14, 'sawtooth');
     else if (type === 'score') { blip(520, 520, .14, .17, 'triangle'); blip(660, 660, .14, .17, 'triangle', .1); blip(880, 880, .24, .19, 'triangle', .2); }
   } catch (e) {}
 }
@@ -459,7 +469,8 @@ function syncHud(force) {
 }
 function startLevel(i) {
   li = i; w = createWorld(i); w.sfx = sfx; st = 'ready';
-  parts = []; ripples = []; flash = null; scoredTimer = 0;
+  w.onFire = streak >= FIRE_AT;
+  parts = []; ripples = []; flash = null; scoredTimer = 0; popups = []; flames = []; lastBadges = [];
   ov.hidden = true;
   elLvl.innerHTML = (Math.floor(i / PER) + 1) + '<small> \u00b7 ' + (i % PER + 1) + '/' + PER + '</small>';
   elBest.textContent = bestText();
@@ -487,9 +498,13 @@ function showIntro() {
   });
   showCard('<h1>Dribble</h1>' +
     '<p>Tap the ball to push it down and it bounces back up. Tap left of center to send it right, right of center to send it left. Tap in rhythm to build momentum. Taps are blocked inside the dashed box around the rim.</p>' +
+    '<span class="lab">Achievements</span><div class="ach">' +
+    '<span class="' + (store.ach.one ? 'on' : '') + '">Hole in 1' + (store.ach.one ? ' \u00d7' + store.ach.one : '') + '</span>' +
+    '<span class="' + (store.ach.down ? 'on' : '') + '">From downtown' + (store.ach.down ? ' \u00d7' + store.ach.down : '') + '</span>' +
+    '<span class="' + (store.ach.fire ? 'on' : '') + '">On fire' + (store.ach.fire ? ' \u00d7' + store.ach.fire : '') + '</span></div>' +
     '<span class="lab">Pick a stage · 12 challenges each</span><div class="stagelist">' + list + '</div>', true);
   Array.prototype.forEach.call(card.querySelectorAll('[data-st]'), function (el) {
-    el.onclick = function () { audio(); run = []; startLevel(+el.getAttribute('data-st') * PER); };
+    el.onclick = function () { audio(); run = []; streak = 0; startLevel(+el.getAttribute('data-st') * PER); };
   });
 }
 function showComplete() {
@@ -504,6 +519,7 @@ function showComplete() {
   var isLast = li % PER === PER - 1;
   showCard('<div class="kicker">Stage ' + (Math.floor(li / PER) + 1) + ' · ' + (li % PER + 1) + ' of ' + PER + ' · ' + LEVELS[li].name + '</div>' +
     '<h2>' + word + '</h2>' +
+    (lastBadges.length ? '<div class="badges">' + lastBadges.map(function (t) { return '<span>' + t + '</span>'; }).join('') + '</div>' : '') +
     '<div class="res"><div><span class="lab">Time</span><span class="val">' + t.toFixed(1) + '<small>s</small></span>' + (newT ? '<em>New best</em>' : '') + '</div>' +
     '<div><span class="lab">Taps</span><span class="val">' + b + '</span>' + (newB ? '<em>New best</em>' : '') + '</div></div>' +
     '<div class="row"><button class="btn" id="retry" type="button">Retry</button>' +
@@ -528,14 +544,27 @@ function showFinal() {
     '<div class="row"><button class="btn sm" id="again" type="button">Replay</button>' +
     '<button class="btn sm" id="menu" type="button">Stages</button>' +
     (last ? '' : '<button class="btn sm primary" id="nextlv" type="button">Stage ' + (pk + 2) + '</button>') + '</div>', true);
-  $('again').onclick = function () { run = []; startLevel(pk * PER); };
-  $('menu').onclick = function () { run = []; showIntro(); };
-  if (!last) $('nextlv').onclick = function () { run = []; startLevel((pk + 1) * PER); };
+  $('again').onclick = function () { run = []; streak = 0; startLevel(pk * PER); };
+  $('menu').onclick = function () { run = []; streak = 0; showIntro(); };
+  if (!last) $('nextlv').onclick = function () { run = []; streak = 0; startLevel((pk + 1) * PER); };
 }
 
 function onScore() {
   st = 'scored'; scoredTimer = 0;
   var h = w.hoop, cx = (h.frontX + h.backX) / 2;
+  lastBadges = [];
+  if (w.bounces === 1) { lastBadges.push(Math.random() < .5 ? 'Hole in 1!' : '1 Tap Wonder!'); store.ach.one++; }
+  if (Math.abs(w.lastTapX - cx) >= W / 2) { lastBadges.push('From downtown!'); store.ach.down++; }
+  if (w.bounces < FIRE_TAPS) {
+    streak++;
+    if (streak === FIRE_AT) { lastBadges.push("You're on fire!"); store.ach.fire++; }
+    else if (streak > FIRE_AT) lastBadges.push('Still on fire x' + streak);
+    if (streak >= FIRE_AT) w.onFire = true;
+  } else { streak = 0; w.onFire = false; }
+  save();
+  popups = lastBadges.map(function (t, k) { return { text: t, t: -k * .25 }; });
+  scoreHold = lastBadges.length ? 2.1 : 1;
+  if (lastBadges.length) sfx('badge');
   flash = { t: 0, x: cx, y: h.y };
   if (!reduce) {
     var cols = [C.amber, C.paint, C.ball, C.rim];
@@ -550,7 +579,10 @@ cv.addEventListener('pointerdown', function (e) {
   audio();
   var r = cv.getBoundingClientRect();
   var px = (e.clientX - r.left) / r.width * W, py = (e.clientY - r.top) / r.height * H;
-  if (tapWorld(w, px, py)) { st = 'play'; hintOn = false; ripples.push({ x: px, y: py, t: 0, hit: true }); sfx('tap'); }
+  if (tapWorld(w, px, py)) {
+    st = 'play'; hintOn = false; ripples.push({ x: px, y: py, t: 0, hit: true }); sfx('tap');
+    if (w.onFire && w.bounces >= FIRE_TAPS) { w.onFire = false; streak = 0; popups.push({ text: "Fire's out", t: 0 }); sfx('out'); }
+  }
   else ripples.push({ x: px, y: py, t: 0, hit: false });
 });
 $('reset').onclick = function () { if (st !== 'intro') startLevel(li); };
@@ -658,6 +690,22 @@ function drawScene(now) {
   c.beginPath(); c.ellipse(b.x, FLOOR + 5, R * (1.05 - air * .5), 3.4 * (1 - air * .4), 0, 0, TAU); c.fill();
   c.restore();
 
+  /* fire */
+  if (w.onFire) {
+    var gl = c.createRadialGradient(b.x, b.y, R * .5, b.x, b.y, R * 2.6);
+    gl.addColorStop(0, 'rgba(255,170,60,.65)'); gl.addColorStop(1, 'rgba(255,100,40,0)');
+    c.fillStyle = gl; c.beginPath(); c.arc(b.x, b.y, R * 2.6, 0, TAU); c.fill();
+  }
+  if (flames.length) {
+    c.save(); c.globalCompositeOperation = 'lighter';
+    for (i = 0; i < flames.length; i++) {
+      var fq = flames[i], fa = Math.max(0, fq.life);
+      c.globalAlpha = fa * .85; c.fillStyle = fa > .6 ? C.amber : fa > .3 ? C.ball : C.rim;
+      c.beginPath(); c.arc(fq.x, fq.y, fq.s * fa + 1, 0, TAU); c.fill();
+    }
+    c.restore();
+  }
+
   /* ball */
   c.save();
   c.translate(b.x, b.y);
@@ -718,6 +766,19 @@ function drawScene(now) {
   }
   c.globalAlpha = 1;
 
+  for (i = 0; i < popups.length; i++) {
+    var pp = popups[i];
+    if (pp.t < 0) continue;
+    var pa = Math.min(1, pp.t / .12, (1.8 - pp.t) / .5), sc = 1 + Math.max(0, .25 - pp.t) * 1.6, py0 = 400 + i * 58 - pp.t * 36;
+    c.save();
+    c.globalAlpha = Math.max(0, pa); c.translate(W / 2, py0); c.scale(sc, sc);
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '900 52px ' + DISPLAY; c.lineJoin = 'round';
+    c.lineWidth = 8; c.strokeStyle = C.plate; c.strokeText(pp.text.toUpperCase(), 0, 0);
+    c.fillStyle = C.amber; c.fillText(pp.text.toUpperCase(), 0, 0);
+    c.restore();
+  }
+  c.globalAlpha = 1;
+
   if (hintOn && st === 'ready' && li === 0) {
     c.fillStyle = C.paint; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
     c.font = '900 34px ' + DISPLAY; c.fillText('DRIBBLE THE BALL', W / 2, 620);
@@ -734,13 +795,22 @@ function frame(now) {
     if (w.scored && st === 'play') onScore();
   }
   var i;
+  if (w.onFire && !reduce) {
+    var fb = w.ball;
+    for (i = 0; i < 2; i++) flames.push({ x: fb.x + (Math.random() - .5) * R, y: fb.y + (Math.random() - .3) * R, vx: -fb.vx * .12 + (Math.random() - .5) * 50, vy: -fb.vy * .12 - 40 - Math.random() * 70, life: 1, s: 5 + Math.random() * 6 });
+  }
+  for (i = flames.length - 1; i >= 0; i--) {
+    var fl = flames[i]; fl.x += fl.vx * dt; fl.y += fl.vy * dt; fl.life -= dt * 2.2;
+    if (fl.life <= 0) flames.splice(i, 1);
+  }
+  for (i = popups.length - 1; i >= 0; i--) { popups[i].t += dt; if (popups[i].t > 1.8) popups.splice(i, 1); }
   for (i = ripples.length - 1; i >= 0; i--) { ripples[i].t += dt; if (ripples[i].t > .35) ripples.splice(i, 1); }
   for (i = parts.length - 1; i >= 0; i--) {
     var p = parts[i]; p.vy += 900 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt * 1.1;
     if (p.life <= 0) parts.splice(i, 1);
   }
   if (flash) { flash.t += dt; if (flash.t > .6) flash = null; }
-  if (st === 'scored') { scoredTimer += dt; if (scoredTimer > 1.0) { st = 'overlay'; showComplete(); } }
+  if (st === 'scored') { scoredTimer += dt; if (scoredTimer > scoreHold) { st = 'overlay'; showComplete(); } }
   syncHud(false);
   if (cv.width > 0) drawScene(now);
   requestAnimationFrame(frame);
