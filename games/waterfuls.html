@@ -164,8 +164,8 @@ var LEVELS = [
   /* second set, taken from the three original Tomy toys: Ring-Toss, Tic-Tac-Toe and Mouthful */
   { set: 'Tomy Classics', name: 'Swords', mode: 'any', swords: true, hooks: [[150, 520], [270, 470], [390, 540]], goal: 'Hang all three rings on the swords' },
   { name: 'Duelists', mode: 'any', swords: true, hooks: [[110, 430], [250, 560], [430, 470]], goal: 'Hang all three rings on the swords' },
-  { name: 'Tic-Tac-Toe', mode: 'any', rule: 'line', neutral: true, rings: 6, ringCols: [0, 2, 0, 2, 0, 2], hooks: ttt(270, 470, 125, 98), goal: 'Three of one color in a row' },
-  { name: 'Corner to Corner', mode: 'any', rule: 'diag', neutral: true, rings: 6, ringCols: [2, 0, 2, 0, 2, 0], hooks: ttt(270, 480, 125, 98), goal: 'Three of one color on a diagonal' },
+  { name: 'Tic-Tac-Toe', mode: 'any', rule: 'line', neutral: true, rings: 10, ringCols: [0, 2, 0, 2, 0, 2, 0, 2, 0, 2], hooks: ttt(270, 470, 125, 98), goal: 'Three of one color in a row' },
+  { name: 'Corner to Corner', mode: 'any', rule: 'diag', neutral: true, rings: 10, ringCols: [2, 0, 2, 0, 2, 0, 2, 0, 2, 0], hooks: ttt(270, 480, 125, 98), goal: 'Three of one color on a diagonal' },
   { name: 'Mouthful', mode: 'any', balls: true, hooks: [], mouth: { x: 410, y: 320, R: 88, dir: -1, tilt: 0 }, goal: 'Water opens the mouth. Get the balls in' },
   { name: 'Chomp', mode: 'any', balls: true, hooks: [], mouth: { x: 158, y: 410, R: 88, dir: 1, tilt: .5236, noFlap: true }, goal: 'Head tipped back. Float the balls in' }
 ];
@@ -220,7 +220,7 @@ function createWorld(i) {
   var hooks = L.hooks.map(function (h, k) {
     return { x: h[0], y: h[1], gx: h[2], gy: h[3], len: L.swords ? 92 : 36, sword: !!L.swords, col: L.neutral ? -1 : (h.length > 2 ? (h[2] + h[3]) % 3 : L.cols[k % 3]), n: 0, cap: L.mode === 'target' && k !== L.target, star: L.mode === 'target' && k === L.target };
   });
-  var xs = [262, 282, 268, 276, 258, 284], ys = [400, 330, 260, 190, 120, 50], nr = L.rings || 3;
+  var xs = [262, 282, 268, 276, 258, 284, 250, 290, 262, 280], ys = [560, 500, 440, 380, 320, 260, 200, 140, 80, 40], nr = L.rings || 3;
   var nf = L.fish || 0, fish = [], fxs = [276, 258, 284], fys = [150, 90, 40];
   for (var fk = 0; fk < nf; fk++) fish.push({ x: fxs[fk], y: fys[fk], px: fxs[fk], py: fys[fk], vx: 0, vy: 0, col: fk, caught: false, tx: 0, ty: 0, age: 0, ph: fk * 2.1, face: fk % 2 ? -1 : 1, tilt: 0, nz: 0, nz2: 0, nz3: 0, av: 0, rot: 0, a1: 0, v1: 0, a2: 0, v2: 0 });
   var rings = []; for (var rk = 0; rk < nr; rk++) rings.push(rk);
@@ -536,7 +536,8 @@ function stepWorld(w, dt, push) {
   var ruleOk = true, allIn = w.nLatched === w.rings.length;
   if (w.rule) {
     ruleOk = lineWin(w); allIn = ruleOk;
-    if (!ruleOk && !w.done && w.nLatched === w.rings.length) {
+    var full = w.nLatched === w.rings.length || w.hooks.every(function (h) { return h.n >= 1; });
+    if (!ruleOk && !w.done && full) {
       w.bad += dt;
       if (w.bad > 1.4) {
         for (i = 0; i < w.rings.length; i++) {
