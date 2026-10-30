@@ -80,6 +80,7 @@ body {
 .court { position: relative; box-shadow: 0 0 0 2px var(--paint); }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-tap-highlight-color: transparent; }
 .overlay {
+  overflow-y: auto;
   position: absolute;
   inset: 0;
   display: flex;
@@ -90,6 +91,7 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-
   background: color-mix(in srgb, var(--plate) 70%, transparent);
 }
 .card {
+  margin: auto;
   box-sizing: border-box;
   width: min(100%, 320px);
   display: flex;
@@ -141,11 +143,26 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-
 }
 .btn.primary { color: var(--plate); background: var(--amber); border-color: var(--amber); }
 .btn.sm { font-size: 19px; padding: 0 6px; letter-spacing: .03em; }
-.menu { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.menu .btn { padding: 0; }
+.card.wide { width: min(100%, 420px); }
+.stagelist { display: flex; flex-direction: column; gap: 6px; }
+.stg {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 56px; padding: 6px 12px;
+  text-align: left; font-family: var(--body); color: var(--paint);
+  background: transparent; border: 1.5px solid var(--line-dim);
+  cursor: pointer; touch-action: manipulation;
+}
+.stg:hover { border-color: var(--paint); }
+.stg:focus-visible { outline: 3px solid var(--paint); outline-offset: 2px; }
+.stg .sn { width: 30px; text-align: center; font-family: var(--display); font-weight: 900; font-size: 34px; line-height: 1; color: var(--amber); }
+.stg .si { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.stg .si b { font-weight: 600; font-size: 15px; }
+.stg .si em { font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: .06em; white-space: nowrap; text-transform: uppercase; color: var(--ink-dim); }
+.stg .sb { text-align: right; display: flex; flex-direction: column; gap: 3px; }
+.stg .sb .t { font-family: var(--display); font-weight: 900; font-size: 22px; line-height: 1; color: var(--amber); font-variant-numeric: tabular-nums; }
 .chip {
   min-height: 44px;
-  padding: 0 14px;
+  padding: 0 10px;
   font-family: var(--body);
   font-weight: 600;
   font-size: 13px;
@@ -173,18 +190,19 @@ tfoot td { font-weight: 600; color: var(--amber); border-top: 2px solid var(--pa
 
 <div class="app">
   <header class="hud">
-    <div class="stat"><span class="lab">Level</span><span class="val" id="lvl">1<small> \u00b7 1/8</small></span></div>
+    <div class="stat"><span class="lab">Stage</span><span class="val" id="lvl">1<small> · 1/12</small></span></div>
     <div class="stat"><span class="lab">Time</span><span class="val" id="time">0.0</span></div>
     <div class="stat"><span class="lab">Taps</span><span class="val" id="bn">0</span></div>
   </header>
   <main class="stage" id="stage">
     <div class="court" id="court">
-      <canvas id="cv" aria-label="Basketball court. Tap the ball to dribble it into the hoop. Levels 3 and 4 have a black hole that pulls the ball. Level 5 has a moving hoop."></canvas>
+      <canvas id="cv" aria-label="Basketball court. Tap the ball to dribble it into the hoop. Some stages have a black hole that pulls the ball or a hoop that moves."></canvas>
       <div class="overlay" id="ov" hidden><div class="card" id="card"></div></div>
     </div>
   </main>
   <footer class="bar">
     <div class="best"><span class="lab">Best</span><span id="best">No best yet</span></div>
+    <button class="chip" id="stages" type="button">Stages</button>
     <button class="chip" id="snd" type="button" aria-pressed="false">Sound on</button>
     <button class="chip" id="reset" type="button">Reset</button>
   </footer>
@@ -198,59 +216,48 @@ tfoot td { font-weight: 600; color: var(--amber); border-top: 2px solid var(--pa
 var W = 540, H = 864, FLOOR = 815, R = 16, G = 575, TAU = Math.PI * 2;
 var E_FLOOR = .88, E_WALL = .70, E_BOARD = .60, E_RIM = .55;
 var TAP_POWER = 760, SIDE_PUSH = 280, TS = .75, NOTAP_PAD = 26, NOTAP_UP = 130, NOTAP_DOWN = 40, TAP_REACH = R * 3.6, MAXV = 1900, RIM_R = 3, STEP = 1 / 120;
-var PULL = G * .25, HOLE_R = 270, PER = 8;
+var PULL = G * .25, HOLE_R = 270, PER = 12;
 var COMBO_WINDOW = 1.5, COMBO_MAX = 5, COMBO_GAIN = .1;
 
-/* ball: start side (L, R or M for middle). face: which way the rim reaches from its backboard.
-   hole: black hole centre. move: hoop slides by dx, dy pixels (sine, per = seconds, lag = y phase offset).
-   Level n is entries (n-1)*8 to n*8-1. */
-var LEVELS = [
-  /* Level 1 */
-  { name: 'Warm-Up',       ball: 'L', bx: 534, face: 'L', hy: 459, len: 74, pole: false },
-  { name: 'Low Post',      ball: 'L', bx: 534, face: 'L', hy: 675, len: 60, pole: false },
-  { name: 'Pole Position', ball: 'L', bx: 454, face: 'L', hy: 527, len: 69, pole: true  },
-  { name: 'Other Side',    ball: 'R', bx: 6,   face: 'R', hy: 351, len: 81, pole: false },
-  { name: 'Rafters',       ball: 'L', bx: 534, face: 'L', hy: 257, len: 87, pole: false },
-  { name: 'Over the Top',  ball: 'L', bx: 264, face: 'R', hy: 500, len: 71, pole: true  },
-  { name: 'Nosebleeds',    ball: 'R', bx: 6,   face: 'R', hy: 189, len: 92, pole: false },
-  { name: 'Tight Squeeze', ball: 'L', bx: 464, face: 'L', hy: 311, len: 70, pole: true  },
-  /* Level 2 */
-  { name: 'Second Wind',    ball: 'L', bx: 534, face: 'L', hy: 420, len: 68, pole: false },
-  { name: 'Backboard Bank', ball: 'R', bx: 6,   face: 'R', hy: 590, len: 60, pole: false },
-  { name: 'Skylight',       ball: 'L', bx: 534, face: 'L', hy: 300, len: 76, pole: false },
-  { name: 'Free Throw',     ball: 'L', bx: 330, face: 'L', hy: 480, len: 66, pole: true  },
-  { name: 'Cross Court',    ball: 'R', bx: 210, face: 'R', hy: 440, len: 68, pole: true  },
-  { name: 'Upper Deck',     ball: 'R', bx: 6,   face: 'R', hy: 230, len: 80, pole: false },
-  { name: 'Baseline',       ball: 'L', bx: 430, face: 'L', hy: 620, len: 59, pole: true  },
-  { name: 'High Post',      ball: 'R', bx: 120, face: 'R', hy: 340, len: 73, pole: true  },
-  /* Level 3 */
-  { name: 'Event Horizon', ball: 'L', bx: 534, face: 'L', hy: 450, len: 60, pole: false, hole: { x: 170, y: 520 } },
-  { name: 'Slingshot',     ball: 'R', bx: 6,   face: 'R', hy: 300, len: 66, pole: false, hole: { x: 400, y: 480 } },
-  { name: 'Gravity Well',  ball: 'L', bx: 300, face: 'R', hy: 520, len: 62, pole: true,  hole: { x: 130, y: 690 } },
-  { name: 'Crosscurrent',  ball: 'R', bx: 200, face: 'L', hy: 380, len: 64, pole: true,  hole: { x: 440, y: 600 } },
-  { name: 'Dark Side',     ball: 'L', bx: 380, face: 'R', hy: 250, len: 68, pole: true,  hole: { x: 190, y: 390 } },
-  { name: 'Photon Ring',   ball: 'L', bx: 534, face: 'L', hy: 680, len: 56, pole: false, hole: { x: 300, y: 720 } },
-  { name: 'Drain',         ball: 'R', bx: 270, face: 'L', hy: 200, len: 70, pole: true,  hole: { x: 270, y: 520 } },
-  { name: 'Singularity',   ball: 'M', bx: 6,   face: 'R', hy: 420, len: 58, pole: false, hole: { x: 380, y: 560 } },
-  /* Level 4 */
-  { name: 'Dead Zone',     ball: 'L', bx: 534, face: 'L', hy: 590, len: 54, pole: false, hole: { x: 180, y: 600 } },
-  { name: 'Redshift',      ball: 'R', bx: 6,   face: 'R', hy: 220, len: 62, pole: false, hole: { x: 380, y: 380 } },
-  { name: 'Accretion',     ball: 'L', bx: 420, face: 'L', hy: 640, len: 55, pole: true,  hole: { x: 230, y: 700 } },
-  { name: 'Tidal Lock',    ball: 'R', bx: 150, face: 'R', hy: 300, len: 60, pole: true,  hole: { x: 420, y: 520 } },
-  { name: 'Spaghetti',     ball: 'L', bx: 534, face: 'L', hy: 160, len: 66, pole: false, hole: { x: 260, y: 500 } },
-  { name: 'Lensing',       ball: 'M', bx: 330, face: 'R', hy: 420, len: 56, pole: true,  hole: { x: 150, y: 440 } },
-  { name: 'Dark Matter',   ball: 'R', bx: 90,  face: 'R', hy: 560, len: 58, pole: true,  hole: { x: 400, y: 650 } },
-  { name: 'Heat Death',    ball: 'L', bx: 534, face: 'L', hy: 330, len: 53, pole: false, hole: { x: 170, y: 330 } },
-  /* Level 5 */
-  { name: 'Elevator',      ball: 'L', bx: 534, face: 'L', hy: 450, len: 84, pole: false, move: { dx: 0,   dy: 140, per: 6 } },
-  { name: 'Window Washer', ball: 'R', bx: 6,   face: 'R', hy: 420, len: 86, pole: false, move: { dx: 0,   dy: 170, per: 7.5 } },
-  { name: 'Pendulum',      ball: 'L', bx: 270, face: 'R', hy: 330, len: 82, pole: false, move: { dx: 150, dy: 0,   per: 7 } },
-  { name: 'Circle Drive',  ball: 'L', bx: 400, face: 'L', hy: 380, len: 84, pole: false, move: { dx: 60,  dy: 110, per: 6, lag: 1.57 } },
-  { name: 'Seesaw',        ball: 'R', bx: 100, face: 'R', hy: 300, len: 88, pole: false, move: { dx: 70,  dy: 100, per: 8 } },
-  { name: 'Tide',          ball: 'L', bx: 534, face: 'L', hy: 260, len: 90, pole: false, move: { dx: 0,   dy: 150, per: 5 } },
-  { name: 'Sweep Left',    ball: 'R', bx: 330, face: 'L', hy: 560, len: 80, pole: false, move: { dx: 120, dy: 0,   per: 6.5 } },
-  { name: 'Orbit',         ball: 'M', bx: 270, face: 'R', hy: 360, len: 82, pole: false, move: { dx: 150, dy: 130, per: 7, lag: 1.57 } }
+/* 10 stages x 12 challenges. Each stage reuses the same 12 placements with its own hoop size,
+   motion and black hole. ball: start side (L, R or M). face: which way the rim reaches from its backboard.
+   mv: how the hoop slides (dx, dy pixels, per = seconds per cycle, lag = y phase offset).
+   hole: black hole centre. Stage n is entries (n-1)*12 to n*12-1. */
+var BASES = [
+  { name: 'Warm-Up',        ball: 'L', bx: 534, face: 'L', hy: 450, pole: false, mv: { dx: 0,   dy: 130, per: 6 },              hole: { x: 170, y: 520 } },
+  { name: 'Backboard Bank', ball: 'R', bx: 6,   face: 'R', hy: 590, pole: false, mv: { dx: 0,   dy: 150, per: 7 },              hole: { x: 400, y: 560 } },
+  { name: 'Skylight',       ball: 'L', bx: 534, face: 'L', hy: 300, pole: false, mv: { dx: 0,   dy: 120, per: 5.5 },            hole: { x: 180, y: 430 } },
+  { name: 'Free Throw',     ball: 'L', bx: 330, face: 'L', hy: 480, pole: true,  mv: { dx: 100, dy: 0,   per: 6.5 },            hole: { x: 130, y: 600 } },
+  { name: 'Cross Court',    ball: 'R', bx: 210, face: 'R', hy: 440, pole: true,  mv: { dx: 0,   dy: 120, per: 6 },              hole: { x: 430, y: 560 } },
+  { name: 'Upper Deck',     ball: 'R', bx: 6,   face: 'R', hy: 230, pole: false, mv: { dx: 0,   dy: 110, per: 6 },              hole: { x: 400, y: 400 } },
+  { name: 'Baseline',       ball: 'L', bx: 430, face: 'L', hy: 620, pole: true,  mv: { dx: 90,  dy: 0,   per: 6 },              hole: { x: 200, y: 700 } },
+  { name: 'High Post',      ball: 'R', bx: 120, face: 'R', hy: 340, pole: true,  mv: { dx: 70,  dy: 100, per: 8 },              hole: { x: 410, y: 520 } },
+  { name: 'Low Post',       ball: 'L', bx: 534, face: 'L', hy: 640, pole: false, mv: { dx: 0,   dy: 100, per: 5 },              hole: { x: 240, y: 700 } },
+  { name: 'Rafters',        ball: 'R', bx: 270, face: 'L', hy: 250, pole: true,  mv: { dx: 140, dy: 0,   per: 7 },              hole: { x: 270, y: 520 } },
+  { name: 'Center Stage',   ball: 'M', bx: 6,   face: 'R', hy: 440, pole: false, mv: { dx: 0,   dy: 140, per: 6.5 },            hole: { x: 390, y: 560 } },
+  { name: 'Pole Vault',     ball: 'L', bx: 340, face: 'R', hy: 380, pole: true,  mv: { dx: 80,  dy: 90,  per: 7, lag: 1.57 },   hole: { x: 150, y: 420 } }
 ];
+var STAGES = [
+  { name: 'Large hoop',  size: 82, move: false, hole: false },
+  { name: 'Medium hoop', size: 66, move: false, hole: false },
+  { name: 'Large hoop',  size: 82, move: true,  hole: false },
+  { name: 'Medium hoop', size: 66, move: true,  hole: false },
+  { name: 'Large hoop',  size: 82, move: false, hole: true  },
+  { name: 'Medium hoop', size: 66, move: false, hole: true  },
+  { name: 'Large hoop',  size: 82, move: true,  hole: true  },
+  { name: 'Medium hoop', size: 66, move: true,  hole: true  },
+  { name: 'Small hoop',  size: 56, move: true,  hole: false, speed: .85 },
+  { name: 'Small hoop',  size: 56, move: true,  hole: true,  speed: .85 }
+];
+var LEVELS = [];
+STAGES.forEach(function (S) {
+  BASES.forEach(function (B) {
+    var e = { name: B.name, ball: B.ball, bx: B.bx, face: B.face, hy: B.hy, len: S.size, pole: S.move ? false : B.pole };
+    if (S.hole) e.hole = B.hole;
+    if (S.move) e.move = { dx: B.mv.dx, dy: B.mv.dy, per: B.mv.per * (S.speed || 1), lag: B.mv.lag || 0 };
+    LEVELS.push(e);
+  });
+});
 
 function hoopOf(L) {
   var dir = L.face === 'L' ? -1 : 1;
@@ -388,12 +395,12 @@ var cv = $('cv'), ctx = cv.getContext('2d'), court = $('court'), stage = $('stag
 var ov = $('ov'), card = $('card'), elLvl = $('lvl'), elTime = $('time'), elBn = $('bn'), elBest = $('best');
 var S = 1;
 
-var store = { t: [], b: [] };
+var store = { t: [], b: [], st: [] };
 try {
-  var raw = JSON.parse(localStorage.getItem('dribble.v1'));
-  if (raw && Array.isArray(raw.t) && Array.isArray(raw.b)) store = raw;
+  var raw = JSON.parse(localStorage.getItem('dribble.v2'));
+  if (raw && Array.isArray(raw.t) && Array.isArray(raw.b)) store = { t: raw.t, b: raw.b, st: Array.isArray(raw.st) ? raw.st : [] };
 } catch (e) {}
-function save() { try { localStorage.setItem('dribble.v1', JSON.stringify(store)); } catch (e) {} }
+function save() { try { localStorage.setItem('dribble.v2', JSON.stringify(store)); } catch (e) {} }
 
 var li = 0, w = null, st = 'intro', run = [], parts = [], ripples = [], flash = null, scoredTimer = 0, hintOn = true;
 var last = 0, acc = 0, shownTime = '', shownBn = -1;
@@ -458,19 +465,31 @@ function startLevel(i) {
   elBest.textContent = bestText();
   syncHud(true);
 }
-function showCard(html) { card.innerHTML = html; ov.hidden = false; var p = card.querySelector('.primary'); if (p) p.focus({ preventScroll: true }); }
+function showCard(html, wide) { card.className = 'card' + (wide ? ' wide' : ''); card.innerHTML = html; ov.hidden = false; var p = card.querySelector('.primary'); if (p) p.focus({ preventScroll: true }); }
 
+function fmtTime(t) {
+  if (t < 60) return t.toFixed(1) + 's';
+  var m = Math.floor(t / 60), sec = t - m * 60;
+  return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1);
+}
 function showIntro() {
   st = 'intro';
-  var lv = '';
-  for (var k = 0; k < LEVELS.length / PER; k++) lv += '<button class="btn sm' + (k === 0 ? ' primary' : '') + '" data-lv="' + k + '" type="button">' + (k + 1) + '</button>';
+  var list = '';
+  STAGES.forEach(function (S, k) {
+    var b = store.st[k], tags = [];
+    if (S.move) tags.push('Moving');
+    if (S.hole) tags.push('Black hole');
+    if (!tags.length) tags.push('Standard');
+    list += '<button class="stg" data-st="' + k + '" type="button">' +
+      '<span class="sn">' + (k + 1) + '</span>' +
+      '<span class="si"><b>' + S.name + '</b><em>' + tags.join(' · ') + '</em></span>' +
+      '<span class="sb">' + (b ? '<span class="t">' + fmtTime(b.t) + '</span><span class="lab">' + b.b + ' taps</span>' : '<span class="lab">Not played</span>') + '</span></button>';
+  });
   showCard('<h1>Dribble</h1>' +
-    '<p>Tap the ball to push it down and it bounces back up. Tap left of center to send it right, right of center to send it left.</p>' +
-    '<p>Taps are blocked inside the dashed box around the rim. Tap in rhythm as the ball comes down to build momentum and bounce higher. Your score is time and taps. Lower is better.</p>' +
-    '<p>Levels 3 and 4 add a black hole that tugs the ball. Level 5 has a moving hoop.</p>' +
-    '<span class="lab">Pick a level</span><div class="menu">' + lv + '</div>');
-  Array.prototype.forEach.call(card.querySelectorAll('[data-lv]'), function (el) {
-    el.onclick = function () { audio(); run = []; startLevel(+el.getAttribute('data-lv') * PER); };
+    '<p>Tap the ball to push it down and it bounces back up. Tap left of center to send it right, right of center to send it left. Tap in rhythm to build momentum. Taps are blocked inside the dashed box around the rim.</p>' +
+    '<span class="lab">Pick a stage · 12 challenges each</span><div class="stagelist">' + list + '</div>', true);
+  Array.prototype.forEach.call(card.querySelectorAll('[data-st]'), function (el) {
+    el.onclick = function () { audio(); run = []; startLevel(+el.getAttribute('data-st') * PER); };
   });
 }
 function showComplete() {
@@ -483,7 +502,7 @@ function showComplete() {
   elBest.textContent = bestText();
   var word = w.rimHits === 0 && w.boardHits === 0 ? 'Swish' : w.rimHits === 0 ? 'Bank shot' : 'Rattled in';
   var isLast = li % PER === PER - 1;
-  showCard('<div class="kicker">Level ' + (Math.floor(li / PER) + 1) + ' · ' + (li % PER + 1) + ' of ' + PER + ' · ' + LEVELS[li].name + '</div>' +
+  showCard('<div class="kicker">Stage ' + (Math.floor(li / PER) + 1) + ' · ' + (li % PER + 1) + ' of ' + PER + ' · ' + LEVELS[li].name + '</div>' +
     '<h2>' + word + '</h2>' +
     '<div class="res"><div><span class="lab">Time</span><span class="val">' + t.toFixed(1) + '<small>s</small></span>' + (newT ? '<em>New best</em>' : '') + '</div>' +
     '<div><span class="lab">Taps</span><span class="val">' + b + '</span>' + (newB ? '<em>New best</em>' : '') + '</div></div>' +
@@ -493,20 +512,25 @@ function showComplete() {
   $('next').onclick = function () { if (isLast) showFinal(); else startLevel(li + 1); };
 }
 function showFinal() {
-  var pk = Math.floor(li / PER), tt = 0, tb = 0, rows = '';
-  for (var k = 0; k < PER; k++) {
-    var i = pk * PER + k, r = run[i];
-    if (r) { tt += r.t; tb += r.b; }
+  var pk = Math.floor(li / PER), tt = 0, tb = 0, rows = '', done = true, i, k;
+  for (k = 0; k < PER; k++) {
+    i = pk * PER + k;
+    var r = run[i];
+    if (r) { tt += r.t; tb += r.b; } else done = false;
     rows += '<tr><td>' + (k + 1) + '</td><td>' + LEVELS[i].name + '</td><td>' + (r ? r.t.toFixed(1) + 's' : '–') + '</td><td>' + (r ? r.b : '–') + '</td></tr>';
   }
-  var last = pk === Math.floor((LEVELS.length - 1) / PER);
-  showCard('<h2>Level ' + (pk + 1) + ' done</h2>' +
+  var prev = store.st[pk], isBest = done && (!prev || tt < prev.t);
+  if (isBest) { store.st[pk] = { t: tt, b: tb }; save(); }
+  var last = pk === STAGES.length - 1;
+  showCard('<div class="kicker">' + STAGES[pk].name + '</div><h2>Stage ' + (pk + 1) + ' done</h2>' +
     '<table><thead><tr><th></th><th>Challenge</th><th>Time</th><th>Taps</th></tr></thead><tbody>' + rows + '</tbody>' +
-    '<tfoot><tr><td></td><td>Total</td><td>' + tt.toFixed(1) + 's</td><td>' + tb + '</td></tr></tfoot></table>' +
-    '<div class="row"><button class="btn" id="again" type="button">Replay</button>' +
-    '<button class="btn primary" id="nextlv" type="button">' + (last ? 'Menu' : 'Level ' + (pk + 2)) + '</button></div>');
+    '<tfoot><tr><td></td><td>Total' + (isBest && prev ? ' · new best' : '') + '</td><td>' + fmtTime(tt) + '</td><td>' + tb + '</td></tr></tfoot></table>' +
+    '<div class="row"><button class="btn sm" id="again" type="button">Replay</button>' +
+    '<button class="btn sm" id="menu" type="button">Stages</button>' +
+    (last ? '' : '<button class="btn sm primary" id="nextlv" type="button">Stage ' + (pk + 2) + '</button>') + '</div>', true);
   $('again').onclick = function () { run = []; startLevel(pk * PER); };
-  $('nextlv').onclick = function () { if (last) { run = []; showIntro(); } else { run = []; startLevel((pk + 1) * PER); } };
+  $('menu').onclick = function () { run = []; showIntro(); };
+  if (!last) $('nextlv').onclick = function () { run = []; startLevel((pk + 1) * PER); };
 }
 
 function onScore() {
@@ -530,6 +554,7 @@ cv.addEventListener('pointerdown', function (e) {
   else ripples.push({ x: px, y: py, t: 0, hit: false });
 });
 $('reset').onclick = function () { if (st !== 'intro') startLevel(li); };
+$('stages').onclick = function () { showIntro(); };
 $('snd').onclick = function () {
   muted = !muted; audio();
   this.textContent = muted ? 'Sound off' : 'Sound on';
