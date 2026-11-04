@@ -1,0 +1,1730 @@
+<title>Baja RC</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=Teko:wght@500;700&display=swap">
+<style>
+/* Layout: HUD plates on top, one full-bleed canvas stage, two pedal zones over the bottom corners.
+   Look: sun-bleached Baja desert that slides from day to dusk as you go. One deliberate world, so single theme. */
+:root {
+  --bg: #17100b;
+  --plate: #0f0a07;
+  --ink: #f8eeda;
+  --ink-dim: #c7ad87;
+  --line: #4d3926;
+  --accent: #ff6b1a;
+  --amber: #ffc43a;
+  --good: #8be26c;
+  --warn: #ffb020;
+  --bad: #f0452f;
+  --display: 'Teko', 'Arial Narrow', Impact, sans-serif;
+  --body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-top: max(6px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.app { height: 100%; max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.lab { display: block; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
+.val { display: block; font-family: var(--display); font-weight: 700; font-size: 36px; line-height: .95; color: var(--amber); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.val small { font-size: .5em; font-weight: 500; color: var(--ink-dim); margin-left: 3px; letter-spacing: .04em; }
+.sub { display: block; margin-top: 1px; font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hud { display: flex; align-items: flex-end; gap: 14px; padding-bottom: 5px; border-bottom: 2px solid var(--accent); }
+.stat { min-width: 0; }
+.stat + .stat { padding-left: 14px; border-left: 1px solid var(--line); }
+.stat.cash .val { color: var(--good); }
+.grow { flex: 1; }
+.chip {
+  min-height: 40px; padding: 0 12px;
+  font-family: var(--body); font-weight: 600; font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink); background: transparent; border: 1.5px solid var(--line);
+  cursor: pointer; touch-action: manipulation;
+}
+.chip:focus-visible, .btn:focus-visible, .repair:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.stage { flex: 1; min-height: 0; position: relative; }
+.court { position: absolute; inset: 0; overflow: hidden; box-shadow: 0 0 0 2px var(--accent); touch-action: none; background: #5d93bf; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-tap-highlight-color: transparent; }
+.hp { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: min(44%, 260px); pointer-events: none; }
+.hp .lab { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); display: flex; justify-content: space-between; margin-bottom: 2px; }
+.hp .track { height: 12px; background: rgba(15,10,7,.55); border: 2px solid rgba(255,255,255,.75); }
+.hp i { display: block; height: 100%; width: 100%; background: var(--good); transition: width .12s, background .2s; }
+.hp .track.thin { height: 7px; border-width: 1.5px; }
+.hp .parts { display: flex; justify-content: space-between; margin-top: 4px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.hp .parts .bad { color: #ffb020; }
+.hp .parts .worse { color: #ff7a5c; }
+.pedal {
+  position: absolute; bottom: 12px;
+  width: clamp(96px, 24%, 190px); height: clamp(64px, 24vh, 118px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: .06em; text-transform: uppercase;
+  color: #fff; background: rgba(15,10,7,.34); border: 3px solid rgba(255,255,255,.7); border-radius: 18px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none;
+  transition: background .06s, transform .06s;
+}
+.pedal small { font-family: var(--body); font-weight: 600; font-size: 10px; letter-spacing: .14em; opacity: .85; }
+.pedal.l { left: 12px; }
+.pedal.r { right: 12px; }
+.pedal.on { background: rgba(255,107,26,.75); transform: scale(.96); }
+.pedal.l.on { background: rgba(240,69,47,.78); }
+.upg { position: absolute; left: 50%; top: 57%; transform: translate(-50%, -50%); width: min(62%, 470px); max-height: 92%; overflow-y: auto; box-sizing: border-box; display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; background: rgba(21,14,9,.93); border: 2px solid var(--accent, #ff6b1a); border-radius: 12px; padding: 10px 12px; z-index: 6; color: #fff; }
+.upg[hidden], .garage[hidden] { display: none; }
+.upg h3, .upg .done { grid-column: 1 / -1; }
+.upg h3 { margin: 0 0 4px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: #ffc43a; }
+.upg .u { display: flex; align-items: center; gap: 6px; width: 100%; margin: 3px 0; padding: 6px 8px; border-radius: 9px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: #fff; font: inherit; text-align: left; cursor: pointer; }
+.upg .u b { flex: 1; font-size: 13px; } .upg .u small { display: block; font-weight: 400; opacity: .7; font-size: 11px; }
+.upg .u i { font-style: normal; font-weight: 700; color: #8be26c; white-space: nowrap; }
+.upg .u[disabled] { opacity: .45; cursor: default; } .upg .u[disabled] i { color: #bbb; }
+.upg .done { width: 100%; margin-top: 4px; padding: 9px; border: 0; border-radius: 9px; background: #ff6b1a; color: #1a0f08; font: 700 14px inherit; cursor: pointer; }
+.repair {
+  position: absolute; right: 12px; bottom: calc(clamp(64px, 24vh, 118px) + 22px);
+  min-height: 46px; padding: 0 16px;
+  font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--plate); background: var(--good); border: 0; border-radius: 12px; cursor: pointer; touch-action: manipulation;
+}
+.repair[disabled] { background: rgba(15,10,7,.5); color: rgba(255,255,255,.45); cursor: default; }
+.garage { right: auto; left: 12px; background: #ffc43a; }
+.btn.sel { outline: 3px solid var(--accent); outline-offset: -3px; }
+.rigname { font: inherit; width: 100%; box-sizing: border-box; padding: 9px 10px; background: rgba(255,255,255,.08); color: var(--ink); border: 1px solid rgba(255,255,255,.3); border-radius: 8px; }
+.repair.urgent { animation: pulse .7s ease-in-out infinite alternate; }
+@keyframes pulse { from { transform: scale(1); } to { transform: scale(1.07); } }
+.rot { position: absolute; top: 34px; left: 0; right: 0; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.7); pointer-events: none; display: none; }
+@media (orientation: portrait) { .rot { display: block; } }
+.overlay[hidden] { display: none; }
+.overlay { overflow-y: auto; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; background: rgba(15,10,7,.66); }
+.card { margin: auto; box-sizing: border-box; width: min(100%, 440px); display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; background: var(--plate); border: 2px solid var(--accent); }
+.card h1, .card h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 60px; line-height: .9; letter-spacing: .01em; text-transform: uppercase; color: var(--ink); text-wrap: balance; }
+.card h1 em { font-style: normal; color: var(--accent); }
+.card p { margin: 0; line-height: 1.4; color: var(--ink); }
+.kicker { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-dim); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.grid em { display: block; margin-top: 2px; font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--good); }
+.grid .val { font-size: 40px; }
+.row { display: flex; gap: 8px; }
+.row .btn { flex: 1; }
+.btn {
+  min-height: 52px; padding: 0 14px;
+  font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink); background: transparent; border: 2px solid var(--ink); cursor: pointer; touch-action: manipulation;
+}
+.btn.primary { color: var(--plate); background: var(--accent); border-color: var(--accent); }
+.btn.good { color: var(--plate); background: var(--good); border-color: var(--good); }
+.vlink { align-self: center; font-size: 12px; letter-spacing: .06em; color: var(--ink-dim); text-decoration: underline; padding: 2px 6px; }
+.keys { font-size: 12px; letter-spacing: .06em; color: var(--ink-dim); }
+@media (max-height: 520px) {
+  .val { font-size: 28px; }
+  .card h1, .card h2 { font-size: 44px; }
+  .grid .val { font-size: 32px; }
+  .card { gap: 8px; padding: 14px; }
+  .btn { min-height: 44px; font-size: 22px; }
+  .hud { gap: 10px; }
+  .stat + .stat { padding-left: 10px; }
+}
+@media (max-width: 640px) { .hud .hide-s { display: none; } }
+</style>
+
+<div class="app">
+  <header class="hud">
+    <div class="stat"><span class="lab">Distance</span><span class="val" id="dist">0<small>m</small></span><span class="sub" id="distSub">Best 0 m</span></div>
+    <div class="stat"><span class="lab">Speed</span><span class="val" id="spd">0<small>mph</small></span><span class="sub" id="spdSub">Top 0</span></div>
+    <div class="stat"><span class="lab">Time on road</span><span class="val" id="time">0:00</span><span class="sub" id="timeSub">Best 0:00</span></div>
+    <div class="stat"><span class="lab">Longest jump</span><span class="val" id="jump">0<small>m</small></span><span class="sub" id="jumpSub">Best 0 m</span></div>
+    <div class="stat cash"><span class="lab">Cash</span><span class="val" id="cash">$0</span><span class="sub" id="cashSub">&nbsp;</span></div>
+    <div class="grow"></div>
+    <button class="chip hide-s" id="snd" type="button" aria-pressed="false">Sound on</button>
+    <button class="chip" id="end" type="button">End run</button>
+  </header>
+  <main class="stage" id="stage">
+    <div class="court" id="court">
+      <canvas id="cv" aria-label="Side-view Baja RC truck driving over rough desert terrain. Hold gas to accelerate and brake to slow down or reverse."></canvas>
+      <div class="hp"><span class="lab"><span id="rigLab">Truck</span><span id="hpTxt">100%</span></span><div class="track"><i id="hpFill"></i></div>
+        <span class="lab" style="margin-top:4px"><span>Engine temp</span><span id="tmpTxt">30%</span></span><div class="track thin"><i id="tmpFill"></i></div>
+        <div class="parts"><span id="pSusp">Suspension 100%</span><span id="pRad">Radiator 100%</span></div></div>
+      <div class="rot">Landscape plays best</div>
+      <div class="pedal l" id="pBrake">Brake<small>Hold left</small></div>
+      <div class="pedal r" id="pGas">Gas<small>Hold right</small></div>
+      <button class="repair" id="repair" type="button" disabled>Repair</button>
+      <button class="repair garage" id="garage" type="button" hidden>Upgrade</button>
+      <div class="upg" id="upg" hidden></div>
+      <div class="overlay" id="ov" hidden><div class="card" id="card"></div></div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- Tuning (no DOM below this line until the game shell, so it can be tested headless) ---------- */
+var PXM = 32;                       /* 32 px = 1 m. A 130 px truck is a 4 m truck. */
+var MPH = 0.0699;                   /* px/s to mph at that scale */
+var G = 1000, I_CH = 2600, STEP = 1 / 240, DX = 6, WR = 19, TAU = Math.PI * 2;
+var SMAX = 46, SMIN = 5, KS = 40, CSC = 3.0, CSR = 4.2;     /* suspension travel, spring, compression and rebound damping */
+var FMAX = 1200, VMAX = 950, FBR = 1300, FREV = 520, VREV = 300, MU = 1.6, DRAG = 0.00007;
+var TAIR_G = 9000, TAIR_B = 7500;   /* in the air: gas tips the nose up, brake tips it down */
+var PRICE = 2;                      /* dollars per point of repair */
+var WH = [{ x: -46, y: -6 }, { x: 46, y: -6 }];             /* suspension attach points: rear, front */
+var BODY = [{ x: 72, y: 4 }, { x: -72, y: 4 }, { x: 0, y: 10 }, { x: 34, y: 10 }, { x: -34, y: 10 }, { x: 68, y: -14 },
+            { x: 16, y: -48 }, { x: -22, y: -48 }, { x: -2, y: -50 }, { x: -72, y: -20 }];
+var NOIN = { gas: 0, brake: 0 };
+var UPK = ['susp', 'wb', 'motor', 'rad', 'tire', 'exh'];
+var UPMAX = 10, UPB = { susp: 120, wb: 100, motor: 150, rad: 90, tire: 110, exh: 80 }, UPC = {};
+UPK.forEach(function (k) { UPC[k] = []; for (var i = 0; i < UPMAX; i++) UPC[k].push(Math.round(UPB[k] * (1 + .9 * i + .1 * i * i) / 5) * 5); });
+var UPN = { susp: ['Suspension', 'softer landings, less wear'], wb: ['Wheelbase', 'steadier, tamer wheelies'], motor: ['Motor', 'power and top speed, runs hotter'],
+            rad: ['Radiator', 'runs cooler, recovers faster'], tire: ['Tires', 'more grip, climbs better'], exh: ['Exhaust', 'new sound each level, a bit more power'] };
+function copyUp(u) { var o = {}; UPK.forEach(function (k) { o[k] = Math.max(0, Math.min(UPMAX, +(u && u[k]) || 0)); }); return o; }
+function applyUps(g) { WH[0].x = -46 - 7 * (g.up.wb * .5); WH[1].x = 46 + 7 * (g.up.wb * .5); }
+var RIVAL_FIRST = 100;
+var X_START = 200;
+var BIOMES = [
+  { n: 'Main Street', key: 'town', m: 0 }, { n: 'Gravel Flats', key: 'desert', m: 380 }, { n: 'Pine Forest', key: 'forest', m: 900 },
+  { n: 'Dune Sea', key: 'dunes', m: 1700 }, { n: 'Mountain Pass', key: 'mount', m: 2500 }, { n: 'Red Canyon', key: 'canyon', m: 3400 }
+];
+var LOOPSEQ = [5, 2, 3, 4];
+function biomeIdx(m) {
+  if (m < 3400) { for (var i = BIOMES.length - 2; i >= 0; i--) if (m >= BIOMES[i].m) return i; return 0; }
+  return LOOPSEQ[Math.floor((m - 3400) / 900) % 4];
+}
+var PD = {
+  cone:   { h: 34, hw: 14, hard: 300, frag: [{ s: 'blob', r: 10, c: '#ff7a1c' }, { s: 'blob', r: 8, c: '#ffffff' }, { s: 'blob', r: 8, c: '#ff7a1c' }, { s: 'rect', w: 28, h: 6, c: '#1d1814' }] },
+  barrier:{ h: 50, hw: 64, hard: 320, frag: [{ s: 'plank', w: 124, h: 18, c: '#f4efe6' }, { s: 'rect', w: 6, h: 32, c: '#6a625a' }, { s: 'rect', w: 6, h: 32, c: '#6a625a' }] },
+  trash:  { h: 40, hw: 18, hard: 320, frag: [{ s: 'rect', w: 36, h: 8, c: '#7c8a8d' }, { s: 'rect', w: 14, h: 30, c: '#5d6b6e' }, { s: 'rect', w: 14, h: 30, c: '#5d6b6e' }, { s: 'blob', r: 7, c: '#e9e4d6' }, { s: 'blob', r: 6, c: '#a98c5a' }] },
+  fence:  { h: 40, hw: 48, hard: 280, frag: [{ s: 'rect', w: 12, h: 34, c: '#f6f2ea' }, { s: 'rect', w: 12, h: 34, c: '#f6f2ea' }, { s: 'rect', w: 12, h: 34, c: '#f6f2ea' }, { s: 'rect', w: 12, h: 34, c: '#f6f2ea' }, { s: 'rect', w: 90, h: 6, c: '#e3ddd0' }] },
+  bush:   { h: 34, hw: 32, hard: 420, frag: [{ s: 'blob', r: 14, c: '#5e8a46' }, { s: 'blob', r: 12, c: '#7fae5c' }, { s: 'blob', r: 12, c: '#4f7a3a' }, { s: 'blob', r: 10, c: '#6a9a4e' }, { s: 'blob', r: 9, c: '#3f6a30' }] },
+  sapling:{ h: 92, hw: 24, hard: 360, frag: [{ s: 'rect', w: 12, h: 48, c: '#6b4a2e' }, { s: 'blob', r: 20, c: '#2f6a3c' }, { s: 'blob', r: 16, c: '#3a7a46' }, { s: 'blob', r: 13, c: '#2f6a3c' }] },
+  logs:   { h: 42, hw: 48, hard: 340, frag: [{ s: 'rect', w: 70, h: 15, c: '#8a5a34' }, { s: 'rect', w: 64, h: 15, c: '#7a4d2a' }, { s: 'rect', w: 56, h: 14, c: '#94643a' }] },
+  cactus: { h: 70, hw: 24, hard: 340, frag: [{ s: 'rect', w: 16, h: 40, c: '#4e8a48' }, { s: 'rect', w: 14, h: 26, c: '#5a9a52' }, { s: 'rect', w: 12, h: 22, c: '#4e8a48' }, { s: 'blob', r: 7, c: '#e8a0b0' }] },
+  tumbleweed: { h: 34, hw: 26, hard: 520, frag: [{ s: 'blob', r: 9, c: '#b89a62' }, { s: 'blob', r: 8, c: '#a8895a' }, { s: 'blob', r: 8, c: '#c4a86e' }, { s: 'blob', r: 7, c: '#a8895a' }] },
+  barrel: { h: 44, hw: 21, hard: 300, frag: [{ s: 'rect', w: 14, h: 40, c: '#c0392b' }, { s: 'rect', w: 14, h: 40, c: '#a93226' }, { s: 'rect', w: 36, h: 7, c: '#2b241e' }, { s: 'blob', r: 8, c: '#2b241e' }] },
+  snowman:{ h: 92, hw: 24, hard: 240, frag: [{ s: 'blob', r: 24, c: '#f4f7fb' }, { s: 'blob', r: 18, c: '#eef2f8' }, { s: 'blob', r: 13, c: '#f4f7fb' }, { s: 'rect', w: 18, h: 5, c: '#ff8a2a' }, { s: 'rect', w: 36, h: 4, c: '#6b4a2e' }] },
+  crate:  { h: 46, hw: 26, hard: 300, frag: [{ s: 'rect', w: 46, h: 10, c: '#b8793e' }, { s: 'rect', w: 46, h: 10, c: '#a8692f' }, { s: 'rect', w: 10, h: 38, c: '#8f5a2a' }, { s: 'rect', w: 10, h: 38, c: '#c98a4e' }] }
+};
+var BIOME_PROPS = { town: ['cone', 'barrier', 'trash', 'fence'], desert: ['cactus', 'tumbleweed', 'barrel', 'bush'], forest: ['bush', 'sapling', 'logs', 'sapling'],
+                    dunes: ['cactus', 'tumbleweed', 'barrel', 'crate'], mount: ['snowman', 'sapling', 'crate', 'logs'], canyon: ['barrel', 'cactus', 'crate', 'tumbleweed'] };
+
+function rng(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function smooth(u) { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); }
+function wrapPi(a) { while (a > Math.PI) a -= TAU; while (a < -Math.PI) a += TAU; return a; }
+
+/* ---------- Terrain: heights every 6 px, built piece by piece ahead of the truck ---------- */
+function diffAt(x) { return Math.min(1.8, x / PXM / 2000); }
+function baseAt(x) {
+  var d = Math.min(1, x / PXM / 2000), A = 28 + 70 * d, w = x <= 0 ? 0 : smooth(x / 1400);
+  return -A * w * (.55 * Math.sin(x / 1250 + .7) + .33 * Math.sin(x / 510 + 2.1) + .12 * Math.sin(x / 230));
+}
+function ease(u) { return (u < .12 ? u * u / .24 : u - .06) / .94; }
+function envS(u) { return Math.min(smooth(u * 6), smooth((1 - u) * 6)); }
+
+function makeTerrain(seed) {
+  var R = rng(seed), T = { X0: -800, ys: [], rock: [], n: 0, R: R, seq: ['wash0', 'roll0', 'kick0', 'roll0', 'hill0', 'wash0', 'kick0', 'roll0'], calm: false, last: '' };
+  function rnd(a, b) { return a + (b - a) * R(); }
+  var P = {
+    flat: function () { return { len: 1600, f: function () { return 0; } }; },
+    bighill: function (d) {
+      var amp = rnd(260, 480) + d * 120, len = Math.max(rnd(1400, 2000), amp * 5.4);
+      return { len: len, f: function (x) { return -amp * (.5 - .5 * Math.cos(TAU * x / len)); } };
+    },
+    cliff: function (d) {
+      /* a long climb to a lip, then a big drop with a steep landing slope that flattens out: lots of air time to line up the landing */
+      var H = Math.min(1500, rnd(700, 1100) + d * 300), Lc = 3.6 * H, Lk = 220, Ld = 1.4 * H + 900, len = Lc + Lk + Ld;
+      return { len: len, f: function (x) {
+        if (x < Lc) return -H * smooth(x / Lc);
+        if (x < Lc + Lk) { var u = (x - Lc) / Lk; return -H - 55 * u * u; }
+        return -(H + 55) * Math.pow(1 - (x - Lc - Lk) / Ld, 3.4);
+      } };
+    },
+    mega: function (d) {
+      /* a launch ramp that steepens toward the lip, then a long fall-away to land on */
+      var h = rnd(120, 175) + d * 30, Lu = 2 * h / rnd(.62, .78), L2 = 4 * h + 520, len = Lu + L2;
+      return { len: len, f: function (x) {
+        if (x < Lu) return -h * (x / Lu) * (x / Lu);
+        return -h * (1 - smooth((x - Lu) / L2));
+      } };
+    },
+    dune: function (d) {
+      var n = Math.round(rnd(2, 4)), wl = rnd(520, 860), amp = rnd(50, 100) + d * 30, len = n * wl;
+      return { len: len, f: function (x) {
+        var u = (x % wl) / wl, y = u < .64 ? .5 - .5 * Math.cos(Math.PI * u / .64) : .5 + .5 * Math.cos(Math.PI * (u - .64) / .36);
+        return -amp * y;
+      } };
+    },
+    roll: function (d, calm) {
+      var len = calm ? rnd(180, 360) : rnd(280, 620), amp = (4 + 16 * d) * rnd(.6, 1.2) * (calm ? .5 : 1), l1 = rnd(95, 170), l2 = rnd(38, 70), p1 = rnd(0, 6.28), p2 = rnd(0, 6.28);
+      return { len: len, f: function (x) { return -amp * (.5 - .5 * Math.cos(TAU * x / len)) * (.6 * Math.sin(TAU * x / l1 + p1) + .4 * Math.sin(TAU * x / l2 + p2)); } };
+    },
+    wash: function (d) {
+      var len = rnd(300, 700), wl = rnd(26, 42), amp = (3 + 9 * Math.min(d, 1.2)) * rnd(.7, 1.1);
+      return { len: len, f: function (x) { return -amp * (.5 - .5 * Math.cos(TAU * x / wl)) * envS(x / len); } };
+    },
+    whoops: function (d) {
+      var n = Math.round(rnd(4, 8)), wl = rnd(120, 190), amp = (14 + 28 * Math.min(d, 1.3)) * rnd(.75, 1.1), len = n * wl;
+      return { len: len, f: function (x) { return -amp * (.5 - .5 * Math.cos(TAU * x / wl)) * envS(x / len); } };
+    },
+    hill: function (d) {
+      var len = rnd(520, 1000), amp = Math.min(rnd(45, 95) + d * 80, len / 4.2);
+      return { len: len, f: function (x) { return -amp * (.5 - .5 * Math.cos(TAU * x / len)); } };
+    },
+    kick: function (d, small) {
+      var h = (small ? rnd(26, 34) : rnd(30, 50)) + d * 22, a = rnd(.32, .52) + d * .1, Lu = h / Math.tan(a), Ld = 2.75 * h + 40, len = Lu + Ld + 60;
+      return { len: len, f: function (x) { return x < Lu ? -h * ease(x / Lu) : x < Lu + Ld ? -h * (1 - smooth((x - Lu) / Ld)) : 0; } };
+    },
+    dbl: function (d) {
+      var h = rnd(46, 62) + d * 14, a = rnd(.42, .56), Lu = h / Math.tan(a), drop = 34, gap = rnd(240, 380) + d * 140, h2 = h * rnd(.35, .5), face = 1.5 * h2, plat = 70, Ld = 2.75 * h2 + 40;
+      var x1 = Lu + drop + gap, x2 = x1 + face + plat, len = x2 + Ld + 60;
+      return {
+        len: len,
+        f: function (x) {
+          if (x < Lu) return -h * ease(x / Lu);
+          if (x < Lu + drop) return -h * (1 - smooth((x - Lu) / drop));
+          if (x < x1) return 0;
+          if (x < x1 + face) return -h2 * smooth((x - x1) / face);
+          if (x < x2) return -h2;
+          if (x < x2 + Ld) return -h2 * (1 - smooth((x - x2) / Ld));
+          return 0;
+        },
+        rk: function (x) { return x >= x1 && x < x1 + face ? 1 : 0; }
+      };
+    },
+    rocks: function (d) {
+      var len = rnd(450, 900), bumps = [], x = rnd(40, 100);
+      while (x < len - 100) {
+        var w = rnd(44, 92), h = Math.min(rnd(8 + 12 * d, 14 + 30 * d), w * .46);
+        bumps.push({ c: x + w / 2, w: w, h: h });
+        x += w * rnd(.7, 1.5) + rnd(10, 60);
+      }
+      var prof = function (xl) {
+        var y = 0;
+        for (var i = 0; i < bumps.length; i++) {
+          var b = bumps[i], t = Math.abs(xl - b.c) / (b.w / 2);
+          if (t < 1) y = Math.max(y, b.h * Math.pow(1 - t, 1.2));
+        }
+        return y;
+      };
+      return { len: len, f: function (xl) { return -prof(xl); }, rk: function (xl) { return prof(xl) > .5 ? 1 : 0; } };
+    },
+    steps: function (d) {
+      var n = Math.round(rnd(2, 4)), cs = [], x = 40, i;
+      for (i = 0; i < n; i++) { var pl = rnd(50, 110); cs.push({ c: x, hs: rnd(10, 18) + d * 8, pl: pl, fw: 0 }); cs[i].fw = Math.max(24, 1.7 * cs[i].hs); x += pl + rnd(160, 260); }
+      var len = x + 60;
+      var prof = function (xl) {
+        var y = 0;
+        for (var k = 0; k < cs.length; k++) { var c = cs[k]; y = Math.max(y, c.hs * (smooth((xl - c.c) / c.fw) - smooth((xl - c.c - c.pl) / 70))); }
+        return y;
+      };
+      return { len: len, f: function (xl) { return -prof(xl); }, rk: function (xl) { return prof(xl) > 1 ? 1 : 0; } };
+    }
+  };
+  function pick(d, bi) {
+    var key = BIOMES[bi].key, w, tot = 0, i;
+    if (key === 'town') w = [['roll', 3], ['wash', 1.5], ['kick', 1.3], ['hill', 1]];
+    else if (key === 'desert') w = [['roll', 2.2], ['wash', 1.5], ['hill', 1.3], ['kick', 1.3], ['whoops', 1.4], ['dbl', .9], ['rocks', .9 + d], ['bighill', .7 + d], ['mega', .6 + d * .6], ['cliff', .7 + d]];
+    else if (key === 'forest') w = [['roll', 1.5], ['whoops', 2], ['rocks', 1.6 + d], ['hill', 1.2], ['kick', 1.2], ['dbl', 1], ['bighill', 1], ['mega', .8 + d * .6], ['cliff', 1 + d]];
+    else if (key === 'dunes') w = [['dune', 3.2], ['bighill', 1.4], ['mega', 1.2 + d * .6], ['cliff', 1.2 + d], ['wash', 1], ['kick', 1], ['roll', 1]];
+    else if (key === 'mount') w = [['mega', 2.2 + d * .6], ['bighill', 2], ['cliff', 2.2 + d], ['rocks', 1.6 + d], ['steps', .8], ['hill', 1.2], ['dbl', 1.1], ['kick', .8]];
+    else w = [['rocks', 2 + d], ['steps', 1.2], ['dbl', 1.6], ['whoops', 1.4], ['mega', 1.3 + d * .6], ['bighill', 1], ['cliff', 1.6 + d], ['kick', .8]];
+    w = w.filter(function (e) { return !((e[0] === 'steps' && d < .45) || (e[0] === 'dbl' && d < .12) || ((e[0] === 'mega' || e[0] === 'bighill' || e[0] === 'cliff') && d < .1)); });
+    for (i = 0; i < w.length; i++) { if (w[i][0] === T.last && w[i][0] !== 'roll') w[i][1] *= .25; if (w[i][0] === 'rocks' && d < .2) w[i][1] *= .3; tot += w[i][1]; }
+    var r = R() * tot;
+    for (i = 0; i < w.length; i++) { r -= w[i][1]; if (r <= 0) return w[i][0]; }
+    return 'roll';
+  }
+  function addPiece() {
+    var xs = T.X0 + T.n * DX, d = diffAt(xs), name, p;
+    if (T.n === 0) { name = 'flat'; p = P.flat(); }
+    else if (T.seq.length) { name = T.seq.shift(); p = name === 'kick0' ? P.kick(d, true) : name === 'wash0' ? P.wash(0) : name === 'hill0' ? P.hill(0) : P.roll(0, false); }
+    else if (T.calm) { name = 'roll'; p = P.roll(d, true); T.calm = false; }
+    else { name = pick(d, biomeIdx((xs - X_START) / PXM)); p = P[name](d); T.calm = name !== 'roll' && name !== 'wash' && name !== 'hill'; }
+    T.last = name; (T.names = T.names || []).push([name, xs]);
+    var cnt = Math.ceil(p.len / DX);
+    for (var i = 0; i < cnt; i++) {
+      var xl = i * DX;
+      T.ys.push(baseAt(xs + xl) + p.f(xl));
+      T.rock.push(p.rk ? p.rk(xl) : 0);
+      T.n++;
+    }
+  }
+  T.ensure = function (xmax) { while (T.X0 + T.n * DX < xmax) addPiece(); };
+  T.ensure(2500);
+  return T;
+}
+function groundAt(T, x) {
+  var f = (x - T.X0) / DX, i = Math.floor(f);
+  if (i < 0) return T.ys[0];
+  if (i >= T.n - 1) return T.ys[T.n - 1];
+  return T.ys[i] + (T.ys[i + 1] - T.ys[i]) * (f - i);
+}
+function slopeAt(T, x) { return (groundAt(T, x + 4) - groundAt(T, x - 4)) / 8; }
+
+/* Does a circle overlap the ground? Fills o with penetration, outward normal and the touching point on the ground. */
+function circlePen(T, cx, cy, r, o) {
+  var i0 = Math.floor((cx - r - T.X0) / DX) - 1, i1 = Math.ceil((cx + r - T.X0) / DX) + 1, best = 1e18, i;
+  if (i0 < 0) i0 = 0;
+  if (i1 > T.n - 2) i1 = T.n - 2;
+  var bqx = 0, bqy = 0, bsx = 0, bsy = -1, bdx = 0, bdy = 0;
+  for (i = i0; i <= i1; i++) {
+    var ax = T.X0 + i * DX, ay = T.ys[i], ey = T.ys[i + 1] - ay, l2 = DX * DX + ey * ey;
+    var t = ((cx - ax) * DX + (cy - ay) * ey) / l2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    var qx = ax + DX * t, qy = ay + ey * t, ddx = cx - qx, ddy = cy - qy, d2 = ddx * ddx + ddy * ddy;
+    if (d2 < best) { best = d2; bqx = qx; bqy = qy; var L = Math.sqrt(l2); bsx = ey / L; bsy = -DX / L; bdx = ddx; bdy = ddy; }
+  }
+  var dist = Math.sqrt(best), above = bdx * bsx + bdy * bsy >= 0;
+  var pen = above ? r - dist : r + dist;
+  if (pen <= 0) return false;
+  if (above && dist > 1e-6) { o.nx = bdx / dist; o.ny = bdy / dist; } else { o.nx = bsx; o.ny = bsy; }
+  o.pen = pen; o.px = bqx; o.py = bqy;
+  return true;
+}
+
+/* The suspension: slide the wheel down its strut until it touches. Returns strut length (SMAX = hanging free). */
+function wheelSolve(T, Ax, Ay, dx, dy, o, o2) {
+  o.contact = false;
+  if (!circlePen(T, Ax + dx * SMAX, Ay + dy * SMAX, WR, o)) return SMAX;
+  o.contact = true;
+  if (circlePen(T, Ax, Ay, WR, o)) return 0;
+  var lo = 0, hi = SMAX;
+  for (var k = 0; k < 8; k++) { var mid = (lo + hi) / 2; if (circlePen(T, Ax + dx * mid, Ay + dy * mid, WR, o2)) hi = mid; else lo = mid; }
+  circlePen(T, Ax + dx * hi, Ay + dy * hi, WR, o);
+  return hi;
+}
+
+/* ---------- Truck ---------- */
+function newVehicle(T, x0) {
+  var gy = groundAt(T, x0);
+  return { x: x0, y: gy - 46, vx: 0, vy: 0, th: 0, om: 0, thr: 0, brk: 0, s: [34, 34], c: [true, true], bc: false, slip: [false, false],
+           wsp: [0, 0], cp: [{ x: 0, y: 0 }, { x: 0, y: 0 }], ax: 0 };
+}
+function createGame(seed, veh) {
+  var T = makeTerrain(seed), x0 = X_START;
+  var gg = {
+    T: T, seed: seed, x0: x0, V: newVehicle(T, x0), hp: 100, cash: 0, earned: 0, time: 0, dist: 0, topSpeed: 0, longJump: 0, speed: 0,
+    inv: 1, locked: false, wrecked: false, repairLeft: 0, dmgTotal: 0, ev: [], dripN: 0, zone: -1,
+    airT: 0, jx0: 0, rot: 0, pend: null, whT: 0, whGap: 0, whSp: 0, stT: 0, stGap: 0, stSp: 0, flipT: 0, air: 0, trick: '', props: [], propX: 700, rollOn: false, rollRot: 0, rollOk: 0, rollT: 0, pr: rng(seed + 7), smashed: 0, tow: null, susp: 100, rad: 100, temp: .3, hot: false, powerMul: 1, wo: [{}, {}], wo2: {}, co: {}
+  };
+  gg.veh = veh === 'tow' ? 'tow' : 'baja'; gg.up = copyUp({}); gg.rv = null; gg.towN = 0; gg.banked = 0; applyUps(gg);
+  return gg;
+}
+function hurt(g, amt, why) {
+  if (g.veh === 'tow' || g.inv > 0 || g.wrecked || amt < .5) return;
+  g.hp -= amt; g.dmgTotal += amt;
+  g.ev.push({ k: 'dmg', a: amt, why: why });
+}
+/* Push the body out of the ground and bounce/slide it; reports how hard the hit was. */
+function resolveContact(g, px, py, nx, ny, pen, e, mu, thr, coef, why) {
+  var V = g.V;
+  V.x += nx * pen; V.y += ny * pen;
+  var rx = px - V.x, ry = py - V.y, vpx = V.vx - V.om * ry, vpy = V.vy + V.om * rx, vn = vpx * nx + vpy * ny;
+  if (vn >= 0) return 0;
+  var rn = rx * ny - ry * nx, j = -(1 + e) * vn / (1 + rn * rn / I_CH);
+  V.vx += j * nx; V.vy += j * ny; V.om += j * rn / I_CH;
+  var tx = -ny, ty = nx, vt = vpx * tx + vpy * ty, rt = rx * ty - ry * tx, jt = clamp(-vt / (1 + rt * rt / I_CH), -mu * j, mu * j);
+  V.vx += jt * tx; V.vy += jt * ty; V.om += jt * rt / I_CH;
+  if (-vn > thr) hurt(g, (-vn - thr) * coef, why);
+  if (-vn > 140) g.ev.push({ k: 'hit', v: -vn, x: px, y: py });
+  return -vn;
+}
+function partHit(g, key, amt) {
+  if (g.veh === 'tow' || g.inv > 0 || g.wrecked || amt <= 0) return;
+  if (key === 'susp') amt *= 1 - .25 * (g.up.susp * .5);
+  if (key === 'rad') amt *= 1 - .25 * (g.up.rad * .5);
+  g[key] = Math.max(0, g[key] - amt);
+  g.ev.push({ k: 'part', what: key === 'susp' ? 'Suspension' : 'Radiator', a: amt });
+}
+function physStep(g, inp, dt) {
+  var V = g.V, T = g.T, i, c = Math.cos(V.th), s_ = Math.sin(V.th), dxv = -s_, dyv = c;
+  var ax = 0, ay = G, tq = 0, cnt = 0;
+  V.thr += (inp.gas - V.thr) * Math.min(1, dt * 14);
+  V.brk += (inp.brake - V.brk) * Math.min(1, dt * 20);
+  var pitch = V.th - Math.atan(slopeAt(T, V.x)), wl = 1 - clamp((-pitch - .8) / .5, 0, 1);   /* power eases off past ~45 degrees nose-up so a standing start doesn't loop out by itself */
+  var fm = (1 + .13 * g.up.motor + .03 * (g.up.exh * .5)) * (g.veh === 'tow' ? 1.3 : 1), vcap = VMAX * (1 + .05 * (g.up.motor * .5)) * (g.veh === 'tow' ? 1.12 : 1);
+  var sw = 1 - g.susp / 100, us = (g.up.susp * .5), ks = KS * (1 + .1 * us) * (1 - .45 * sw), csc = CSC * (1 + .12 * us) * (1 - .6 * sw), csr = CSR * (1 + .12 * us) * (1 - .6 * sw), mu = MU * (1 + .07 * (g.up.tire * .5)) * (1 - .25 * sw);
+  var power = (.6 + .4 * Math.min(1, g.hp / 60)) * g.powerMul * wl, speed = Math.sqrt(V.vx * V.vx + V.vy * V.vy);
+  for (i = 0; i < 2; i++) {
+    var A = WH[i], Ax = V.x + A.x * c - A.y * s_, Ay = V.y + A.x * s_ + A.y * c, o = g.wo[i];
+    var s = wheelSolve(T, Ax, Ay, dxv, dyv, o, g.wo2);
+    V.s[i] = s; V.c[i] = o.contact; V.slip[i] = false;
+    if (!o.contact) {
+      V.wsp[i] += ((V.thr * VMAX * .9 / WR) * (1 - V.brk) - V.wsp[i]) * Math.min(1, dt * (V.brk > .3 ? 9 : 2.5));
+      continue;
+    }
+    cnt++;
+    var comp = SMAX - s, rx = Ax - V.x, ry = Ay - V.y;
+    var cr = clamp((V.vx - V.om * ry) * dxv + (V.vy + V.om * rx) * dyv, -1100, 1100);
+    var Fn = ks * comp * (1 + .9 * (comp / SMAX) * (comp / SMAX)) + (cr > 0 ? csc : csr) * cr;
+    if (Fn < 0) Fn = 0;
+    var nx = o.nx, ny = o.ny, qrx = o.px - V.x, qry = o.py - V.y;
+    V.cp[i].x = o.px; V.cp[i].y = o.py;
+    ax += Fn * nx; ay += Fn * ny; tq += qrx * Fn * ny - qry * Fn * nx;
+    var tx = -ny, ty = nx, vt = (V.vx - V.om * qry) * tx + (V.vy + V.om * qrx) * ty;
+    var climb = clamp((-ny - .2) / .4, 0, 1), sd = V.c[1 - i] ? (i === 0 ? .55 : .45) : 1, sb = i === 0 ? .45 : .55, Ft = 0;
+    if (V.thr > .01) Ft += FMAX * fm * power * V.thr * sd * Math.max(0, 1 - Math.max(0, vt) / vcap) * climb;
+    if (V.brk > .01) {
+      var w = clamp(vt / 30, 0, 1);
+      Ft += -w * FBR * V.brk * sb + -(1 - w) * FREV * V.brk * sd * Math.max(0, 1 - Math.max(0, -vt) / VREV) * climb;
+    }
+    if (V.thr < .01 && V.brk < .01) Ft += -clamp(vt * .6, -30, 30);
+    var lim = mu * Fn + 60;
+    if (Math.abs(Ft) > lim) { Ft = clamp(Ft, -lim, lim); V.slip[i] = true; }
+    ax += Ft * tx; ay += Ft * ty; tq += qrx * Ft * ty - qry * Ft * tx;
+    V.wsp[i] = vt / WR;
+  }
+  if (cnt === 0) tq += -TAIR_G * V.thr + TAIR_B * V.brk;
+  var dk = 1;
+  ax -= DRAG * dk * speed * V.vx; ay -= DRAG * dk * speed * V.vy;
+  V.vx += ax * dt; V.vy += ay * dt;
+  V.om += tq / I_CH * dt;
+  V.om *= 1 - (cnt > 0 ? 1.0 : .12) * dt;
+  V.om = clamp(V.om, -14, 14);
+  V.ax = ax;
+  V.x += V.vx * dt; V.y += V.vy * dt; V.th += V.om * dt;
+  V.bc = false;
+  c = Math.cos(V.th); s_ = Math.sin(V.th); dxv = -s_; dyv = c;
+  var co = g.co;
+  for (i = 0; i < 2; i++) {
+    var B = WH[i], Bx = V.x + B.x * c - B.y * s_, By = V.y + B.x * s_ + B.y * c;
+    if (circlePen(T, Bx + dxv * SMIN, By + dyv * SMIN, WR, co)) {
+      V.bc = true;
+      /* landing flat on all wheels spreads the hit: far less damage than nosing in */
+      var perr = Math.abs(wrapPi(V.th - Math.atan(slopeAt(T, V.x)))), lm = perr < .22 ? .3 : perr < .45 ? .6 : 1;
+      var se = g.up.susp * .5, imp = resolveContact(g, co.px, co.py, co.nx, co.ny, co.pen, .12, .5, 330 + 55 * se, .032 * (1 - .14 * se) * lm, 'hard landing');
+      if (se > 0 && imp > 330 && g.veh !== 'tow') { var raw = (imp - 330) * .032 * lm, got = Math.max(0, (imp - 330 - 55 * se) * .032 * (1 - .14 * se) * lm); if (raw - got >= 3 && !g.soakT) { g.soakT = 1; g.ev.push({ k: 'soak', a: Math.round(raw - got) }); } }
+      if (imp > 250) partHit(g, 'susp', (imp - 250) * .03 * lm);
+      c = Math.cos(V.th); s_ = Math.sin(V.th); dxv = -s_; dyv = c;
+    }
+  }
+  for (i = 0; i < BODY.length; i++) {
+    var Pt = BODY[i], wx = V.x + Pt.x * c - Pt.y * s_, wy = V.y + Pt.x * s_ + Pt.y * c, gy = groundAt(T, wx);
+    if (wy > gy && !(g.speed < 200 && Math.abs(wrapPi(V.th)) < 1.3)) { /* crawling upright: body clears any obstacle, so the truck can never hang on it */
+      var m = slopeAt(T, wx), il = 1 / Math.sqrt(1 + m * m);
+      V.bc = true;
+      var bi = resolveContact(g, wx, wy, m * il, -il, (wy - gy) * il, .2, (Math.abs(wrapPi(V.th)) > 1.3 ? .65 : g.speed < 140 ? .2 : i >= 6 ? .5 : .38), 190, .05, i >= 6 ? 'rolled it' : 'bottomed out');
+      if ((i === 0 || i === 5) && bi > 200) partHit(g, 'rad', (bi - 200) * .04);
+      c = Math.cos(V.th); s_ = Math.sin(V.th);
+    }
+  }
+}
+
+
+/* ---------- Smashables ---------- */
+function spawnProps(g) {
+  var V = g.V, T = g.T, r = g.pr;
+  while (g.propX < V.x + 2400) {
+    var x = g.propX, i = Math.floor((x - T.X0) / DX);
+    g.propX += 420 + r() * 780;
+    if (i < 1 || i >= T.n - 3 || T.rock[i] || T.rock[i + 1] || Math.abs(slopeAt(T, x)) > .3) continue;
+    var list = BIOME_PROPS[BIOMES[biomeIdx((x - X_START) / PXM)].key], k = list[Math.floor(r() * list.length)], def = PD[k], n = k === 'cone' && r() < .5 ? 3 : 1;
+    for (var j = 0; j < n; j++) {
+      var px = x + j * 60;
+      g.props.push({ k: k, x: px, y: groundAt(T, px) - def.h / 2, vx: 0, vy: 0, a: 0, va: 0, alive: true, cy: def.h / 2, life: 0 });
+    }
+  }
+}
+function breakProp(g, p, v) {
+  var def = PD[p.k], V = g.V, r = g.pr, specs = def.frag.slice(), extra = Math.min(6, Math.floor((v - def.hard) / 220)), i;
+  for (i = 0; i < extra; i++) { var b = def.frag[i % def.frag.length]; specs.push({ s: b.s === 'blob' ? 'blob' : 'rect', w: 8 + r() * 8, h: 6 + r() * 8, r: 4 + r() * 4, c: b.c }); }
+  for (i = 0; i < specs.length; i++) {
+    var sp = specs[i];
+    g.props.push({ k: 'frag', s: sp.s, w: sp.w, h: sp.h, r: sp.r, c: sp.c, x: p.x + (r() - .5) * def.hw, y: p.y + (r() - .5) * def.h * .6,
+      vx: V.vx * (.55 + r() * .5) + (r() - .5) * (200 + v * .25), vy: -(200 + r() * 300 + v * .22), a: 0, va: (r() - .5) * 22, alive: false,
+      cy: sp.s === 'blob' ? sp.r : sp.h / 2, life: 0 });
+  }
+}
+function updateProps(g, dt) {
+  var V = g.V, T = g.T, c = Math.cos(V.th), s = Math.sin(V.th), i, ps = g.props;
+  for (i = ps.length - 1; i >= 0; i--) {
+    var p = ps[i];
+    if (p.alive) {
+      if (Math.abs(p.x - V.x) > 190) { if (p.x < V.x - 1600) ps.splice(i, 1); continue; }
+      var def = PD[p.k], dx = p.x - V.x, dy = p.y - V.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
+      if (Math.abs(lx) < 85 + def.hw && ly > -58 - def.h / 2 && ly < 64 + def.h / 2) {
+        var v = Math.sqrt(V.vx * V.vx + V.vy * V.vy), hard = v >= def.hard || g.veh === 'tow';
+        g.ev.push({ k: 'smash', what: p.k, x: p.x, y: p.y, v: v, hard: hard });
+        if (hard) { g.smashed++; breakProp(g, p, v); ps.splice(i, 1); }
+        else { p.alive = false; p.vx = V.vx * .6 + (g.pr() - .5) * 120; p.vy = -(160 + g.pr() * 200); p.va = (g.pr() - .5) * 10; }
+      }
+      continue;
+    }
+    p.life += dt;
+    p.vy += G * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt;
+    var gy = groundAt(T, p.x) - p.cy;
+    if (p.y > gy) {
+      p.y = gy;
+      if (p.vy > 0) p.vy = p.vy > 120 ? -p.vy * .35 : 0;
+      p.vx *= 1 - 3 * dt; p.va *= 1 - 3 * dt;
+    }
+    if (p.life > 8 || p.x < V.x - 1600) ps.splice(i, 1);
+  }
+}
+
+/* ---------- Tow truck: flipped and stuck? It backs in, hooks on, rolls you over and sends the bill. ---------- */
+var TOW_FEE = 50, TOW_T = [1.8, .7, 1.1, 1.8];
+function startTow(g) {
+  var V = g.V, fee = Math.min(g.cash, TOW_FEE);
+  g.cash -= fee; g.towN++; g.rv = null;
+  g.tow = { ph: 0, t: 0, x0: V.x + 1300, x: V.x + 1300, fx: V.x + 190, fee: fee, th0: wrapPi(V.th), y0: V.y, th1: Math.atan(slopeAt(g.T, V.x)), hook: 0, lift: 0 };
+  g.trick = ''; g.whT = 0; g.stT = 0; g.airT = 0; g.pend = null; g.rollOn = false;
+  g.ev.push({ k: 'tow', fee: fee });
+}
+/* A rival tow truck cruises the road ahead and gets quicker the farther you go. Catch it for a bounty; it comes back faster. */
+/* 40% quicker than the player's truck can ever go, and hills, bumps and scenery never slow it. */
+function rivalSpeed(g) { return 1.4 * VMAX * (1 + .05 * (g.up.motor * .5)) * (g.veh === 'tow' ? 1.12 : 1); }
+function updateRival(g, dt, locked) {
+  var r = g.rv, V = g.V;
+  if (!r) return;
+  r.age = (r.age || 0) + dt;
+  /* starts slow so you can reel it in, then pulls away for good: past the first few seconds it always outruns you, however fast you go */
+  var tv = rivalSpeed(g), pv = Math.abs(V.vx);
+  if (r.age > 3.5) tv = Math.max(tv, pv * 1.3 + 120);
+  r.v += (tv - r.v) * Math.min(1, dt * (r.age > 3.5 ? .9 : .12));
+  r.x += r.v * dt;
+  var gap = r.x - V.x;
+  if (gap > 0 && gap < 650 && !locked && !g.wrecked) { r.keep = (r.keep || 0) + dt; if (r.keep >= 2) { r.keep -= 2; var kp = 20; g.cash += kp; g.earned += kp; g.ev.push({ k: 'pay', a: kp, label: 'Keeping up', sub: 'on the tow truck\'s tail' }); } }
+  if (gap > 2600) { g.rv = null; g.ev.push({ k: 'rivalgone' }); return; }
+  if (!g.tow && !g.wrecked && !locked && V.x > r.x - 150 && V.x < r.x + 200) {
+    var pay = Math.max(40, Math.round(r.fee)); /* catching it gets the tow fee back */
+    g.cash += pay; g.earned += pay; g.rv = null;
+    g.ev.push({ k: 'pay', a: pay, label: 'Caught the tow truck', sub: 'tow fee refunded', big: true });
+  }
+}
+/* the tow truck's own recovery arm swings out, pushes it back onto its wheels and tucks away */
+var SELF_T = 1.2;
+function updateSelf(g, dt) {
+  var s = g.self, V = g.V;
+  s.t += dt; V.vx = V.vy = V.om = 0; V.thr = V.brk = 0;
+  var u = Math.min(1, s.t / SELF_T), k = smooth(clamp((u - .2) / .6, 0, 1)), thT = Math.atan(slopeAt(g.T, V.x));
+  V.th = s.th0 + wrapPi(thT - s.th0) * k;
+  V.y = s.y0 + (groundAt(g.T, V.x) - 70 - s.y0) * k - 70 * Math.sin(Math.PI * k);
+  if (s.t >= SELF_T) { reset(g, 0); g.self = null; g.flipT = 0; }
+}
+function updateTow(g, dt) {
+  var w = g.tow, V = g.V, u;
+  if (w.hold) return;
+  w.t += dt;
+  if (w.t >= TOW_T[w.ph]) {
+    w.t -= TOW_T[w.ph]; w.ph++;
+    if (w.ph === 2) g.ev.push({ k: 'towflip' });
+    if (w.ph === 3) {
+      V.th = w.th1; V.om = 0; V.vx = V.vy = 0; V.y = groundAt(g.T, V.x) - 62; g.inv = 1.5; g.airT = 0; g.rot = 0; g.flipT = 0;
+      /* the tow truck drives off for real: catch it for a bounty */
+      g.rv = { x: w.x, v: VMAX * .54, lvl: g.towN, fee: w.fee };
+      g.tow = null; g.ev.push({ k: 'rival', first: true }); return;
+    }
+    if (w.ph > 3) { g.tow = null; return; }
+  }
+  u = w.t / TOW_T[w.ph];
+  if (w.ph === 0) { var e = 1 - (1 - u) * (1 - u); w.x = w.x0 + (w.fx - w.x0) * e; w.hook = 0; }
+  else if (w.ph === 1) { w.x = w.fx; w.hook = smooth(u); }
+  else if (w.ph === 2) {
+    w.x = w.fx; w.hook = 1;
+    var k = smooth(u), tgt = w.th0 + wrapPi(w.th1 - w.th0);
+    V.th = w.th0 + (tgt - w.th0) * k;
+    V.y = w.y0 + (groundAt(g.T, V.x) - 62 - w.y0) * k - 90 * Math.sin(Math.PI * k);
+    w.lift = Math.sin(Math.PI * k);
+  } else { w.x += (140 + 700 * u * u) * dt * 1.0 + 0; w.hook = 1 - smooth(Math.min(1, u * 3)); }
+}
+
+/* ---------- Game rules: damage, cash for tricks, repairs ---------- */
+function land(g) {
+  var V = g.V, dm = (V.x - g.jx0) / PXM, t = g.airT, flips = Math.floor((Math.abs(g.rot) + 1.0) / TAU), back = g.rot < 0;
+  var err = Math.abs(wrapPi(V.th - Math.atan(slopeAt(g.T, V.x))));
+  if (dm > g.longJump) g.longJump = dm;
+  var amt = Math.max(0, t - .4) * 60 + dm, famt = flips * (back ? 140 : 160) * (1 + .5 * (flips - 1));
+  g.pend = { amt: amt, famt: famt, t: .3, d0: g.dmgTotal, flips: flips, dist: dm, air: t, back: back, err: err };
+}
+function gameStep(g, inp, dt) {
+  var c0 = g.cash, e0 = g.earned;
+  gameStep0(g, inp, dt);
+  if (g.veh === 'tow') { g.cash = c0; g.earned = e0; g.ev = g.ev.filter(function (e) { return e.k !== 'pay'; }); } /* the tow truck works for free */
+}
+function gameStep0(g, inp, dt) {
+  var V = g.V, locked = g.locked || g.repairLeft > 0 || g.wrecked || g.self || (g.tow && g.tow.ph < 3);
+  g.T.ensure(V.x + 2800);
+  if (g.inv > 0) g.inv -= dt;
+  if (g.soakT > 0) g.soakT = Math.max(0, g.soakT - dt);
+  if (g.repairLeft > 0) { var h = Math.min(g.repairLeft, 60 * dt); g.hp += h; g.repairLeft -= h; if (g.repairLeft < .001) g.repairLeft = 0; }
+  var rf = g.rad / 100, heat = (.045 * V.thr + .004) * (1 + (1 - rf) * .8) * (1 + .06 * (g.up.motor * .5)), cool = (.01 + .05 * Math.min(1, g.speed / 800)) * (.25 + .75 * rf) * (1 - .5 * V.thr * V.thr) * (1 + .25 * (g.up.rad * .5));
+  if (g.veh === 'tow') g.temp = 0;
+  else if (g.hot) {
+    /* overheated: 7 s to recover sitting still, half that if you keep rolling, as long as you're off full throttle and the radiator is healthy */
+    var cl = clamp(g.rad / 80, .25, 1);
+    if (V.thr >= .85) g.temp = clamp(g.temp + (heat - cool) * dt, 0, 1);
+    else g.temp = clamp(g.temp - (g.speed < 80 ? 1 / 7 : 2 / 7) * cl * (1 + .2 * (g.up.rad * .5)) * dt, 0, 1);
+    if (g.temp <= .05) g.hot = false;
+  } else {
+    g.temp = clamp(g.temp + (heat - cool) * dt, 0, 1);
+    if (g.temp >= 1) { g.hot = true; g.ev.push({ k: 'hot' }); }
+  }
+  g.powerMul = (.65 + .35 * rf) * (1 - clamp((g.temp - .85) / .15, 0, 1) * .5) * (g.hot ? .35 : 1);
+  if (g.tow && g.tow.ph < 3) { updateTow(g, dt); V.vx = V.vy = V.om = 0; V.thr = V.brk = 0; }
+  else if (g.self) { updateSelf(g, dt); }
+  else { physStep(g, locked ? NOIN : inp, dt); if (g.tow) updateTow(g, dt); }
+  spawnProps(g); updateProps(g, dt);
+
+  var sp = (V.c[0] || V.c[1]) ? Math.sqrt(V.vx * V.vx + V.vy * V.vy) : Math.abs(V.vx);
+  g.speed = sp;
+  var sgr = V.c[0] || V.c[1] || V.bc;
+  if (sp < 45 && sgr) g.svc = true; else if (sp > 110 || (!sgr && g.airT > .3)) g.svc = false;
+  if (!g.locked && !g.wrecked) {
+    g.time += dt;
+    if (sp > g.topSpeed) g.topSpeed = sp;
+    var d = (V.x - g.x0) / PXM;
+    if (d > g.dist) g.dist = d;
+    while (g.dist >= (g.dripN + 1) * 50) { g.dripN++; g.cash += 5; g.earned += 5; }
+    var bz = biomeIdx(g.dist);
+    if (bz !== g.zone) { g.zone = bz; g.ev.push({ k: 'zone', name: BIOMES[bz].n }); }
+  }
+
+  /* airtime, flips, landings */
+  var grounded = V.c[0] || V.c[1] || V.bc;
+  if (!grounded) {
+    if (g.airT === 0) { g.jx0 = V.x; g.rot = 0; }
+    g.airT += dt; g.rot += V.om * dt;
+  } else {
+    if (g.airT >= .4 && !g.wrecked) land(g);
+    g.airT = 0;
+  }
+  g.air = g.airT;
+  if (g.pend) {
+    g.pend.t -= dt;
+    if (g.pend.t <= 0) {
+      var p = g.pend, dd = g.dmgTotal - p.d0, clean = dd < 4 && p.err < .4, mult = dd < 4 ? (clean ? 1.3 : 1) : dd < 10 ? .7 : .25;
+      var pay = g.wrecked ? 0 : Math.round(p.amt * mult + p.famt * (clean ? 2 : dd < 10 ? .7 : .25));
+      g.pend = null;
+      if (pay >= 5) {
+        var label = p.flips ? (p.flips === 1 ? (p.back ? 'Backflip' : 'Frontflip') : p.flips + 'x ' + (p.back ? 'Backflip' : 'Frontflip')) : p.dist >= 25 ? 'Huge air' : p.dist >= 14 ? 'Big air' : 'Air';
+        g.cash += pay; g.earned += pay;
+        g.ev.push({ k: 'pay', a: pay, label: label + (clean ? (p.famt ? ' · stuck the landing' : ' · clean landing') : ''), sub: p.dist.toFixed(0) + ' m · ' + p.air.toFixed(1) + ' s' });
+      }
+    }
+  }
+
+  /* wheelies and stoppies */
+  var sl = Math.atan(slopeAt(g.T, V.x)), rt = wrapPi(V.th - sl); /* angle relative to the ground, so hills count */
+  var wOn = V.c[0] && !V.c[1] && rt < -.12 && rt > -1.6 && !V.bc, sOn = V.c[1] && !V.c[0] && rt > .12 && rt < 1.6 && !V.bc;
+  if (wOn) { g.whT += dt; g.whGap = 0; g.whSp = Math.max(g.whSp, sp); } else if (g.whT > 0) { g.whGap += dt; if (g.whGap > .4) endTrick(g, 'whT', 'Wheelie', 1); }
+  if (sOn) { g.stT += dt; g.stGap = 0; g.stSp = Math.max(g.stSp, sp); } else if (g.stT > 0) { g.stGap += dt; if (g.stGap > .4) endTrick(g, 'stT', 'Stoppie', 1.3); }
+  if (g.whT > 0 && (rt <= -1.6 || V.bc)) { g.whT = 0; g.whSp = 0; }
+  if (g.stT > 0 && (rt >= 1.6 || V.bc)) { g.stT = 0; g.stSp = 0; }
+  g.trick = g.whT > .3 ? 'Wheelie ' + g.whT.toFixed(1) + 's' : g.stT > .3 ? 'Stoppie ' + g.stT.toFixed(1) + 's' : g.airT > .35 ? 'Air ' + g.airT.toFixed(1) + 's' : '';
+
+  /* rolling over and ending up back on the wheels pays well */
+  var rp = wrapPi(V.th - Math.atan(slopeAt(g.T, V.x))), rg = V.c[0] || V.c[1] || V.bc;
+  if (!g.rollOn) { if (rg && Math.abs(rp) > 1.3 && !g.tow && !g.wrecked) { g.rollOn = true; g.rollRot = 0; g.rollMax = 0; g.rollOk = 0; g.rollT = 0; } }
+  else if (g.tow || g.wrecked) g.rollOn = false;
+  else {
+    g.rollRot += V.om * dt; g.rollT += dt; g.rollMax = Math.max(g.rollMax || 0, Math.abs(g.rollRot));
+    /* messy landings count: bounces only drain the timer a little, and one wheel plus the body upright for a bit is enough */
+    var upright = Math.abs(rp) < .6;
+    if (upright && V.c[0] && V.c[1]) g.rollOk += dt; else if (upright && rg) g.rollOk += dt * .5; else g.rollOk = Math.max(0, g.rollOk - dt * .5);
+    if (g.rollOk > .3) {
+      var rr = g.rollMax, turns = rr >= 2.6 ? 1 + Math.floor((rr - 2.6) / TAU) : 0;
+      g.rollOn = false;
+      if (turns) { var rpay = turns * 200 + (turns - 1) * 100; g.cash += rpay; g.earned += rpay; g.ev.push({ k: 'pay', a: rpay, label: turns > 1 ? turns + 'x Roll' : 'Roll', sub: 'back on its wheels', big: true }); }
+    }
+    if (g.rollT > 14) g.rollOn = false;
+  }
+
+  /* stuck on its back for a moment: flip it upright, for a price */
+  if (Math.abs(wrapPi(V.th)) > 1.45 && V.bc && sp < (g.veh === 'tow' ? 320 : 90) && !g.wrecked) g.flipT += dt; else g.flipT = Math.max(0, g.flipT - dt * 2);
+  /* lying on its side or wedged tilted and going nowhere: counts as flipped too */
+  if (Math.abs(wrapPi(V.th)) > .8 && (V.bc || V.c[0] || V.c[1]) && !(V.c[0] && V.c[1]) && sp < 40 && !g.wrecked && !g.tow) g.sT = (g.sT || 0) + dt; else g.sT = Math.max(0, (g.sT || 0) - dt * .5);
+  if (g.sT > 3) { g.sT = 0; g.flipT = 1.3; }
+  if (g.flipT > (g.veh === 'tow' ? .35 : 1.2) && !g.tow && !g.self) { g.flipT = 0; if (g.veh === 'tow') { g.self = { t: 0, th0: wrapPi(V.th), y0: V.y }; g.ev.push({ k: 'selfright' }); } else startTow(g); }
+  /* no input and nearly stopped: park it so it never creeps away while you repair or upgrade */
+  if (!g.tow && !g.wrecked && inp.gas < .05 && inp.brake < .05 && sp < 45 && (V.c[0] || V.c[1] || V.bc) && (Math.abs(wrapPi(V.th)) < .7 || Math.abs(wrapPi(V.th)) > 2.5)) { V.vx = 0; V.om *= .6; if (V.vy < 0) V.vy = 0; }
+    /* flat out but going nowhere (wedged against a step or lip): hop and shove forward to clear it */
+  if (inp.gas > .5 && sp < 14 && (V.c[0] || V.c[1] || V.bc) && !g.hot && !g.tow && !g.wrecked && !g.locked && Math.abs(wrapPi(V.th)) < 1.45) g.wdT = (g.wdT || 0) + dt; else g.wdT = 0;
+  if (g.wdT > .8) { g.wdT = 0; V.vy = -420; V.vx += 260; V.om -= .6; g.ev.push({ k: 'hit', v: 160, x: V.x, y: V.y + 40 }); }
+  /* high-centred on a ridge with the wheels hanging: rock the truck free */
+  if (V.bc && !(V.c[0] && V.c[1]) && sp < 40 && Math.abs(wrapPi(V.th)) < 1.45 && !g.tow && !g.wrecked && !g.locked) g.hcT = (g.hcT || 0) + dt; else g.hcT = 0;
+  if (g.hcT > 1.1) { g.hcT = 0; V.vy = -340; V.vx += (inp.brake > .5 ? -1 : 1) * 170; V.om += (inp.brake > .5 ? 1 : -1) * 1.2; g.ev.push({ k: 'hit', v: 160, x: V.x, y: V.y + 40 }); }
+  updateRival(g, dt, locked);
+
+  if (g.hp <= 0 && !g.wrecked) { g.hp = 0; g.wrecked = true; g.ev.push({ k: 'wreck' }); }
+  if (g.hp > 100) g.hp = 100;
+}
+function endTrick(g, key, name, mul) {
+  var t = g[key], spd = key === 'whT' ? g.whSp : g.stSp;
+  g[key] = 0; g[key === 'whT' ? 'whGap' : 'stGap'] = 0; g[key === 'whT' ? 'whSp' : 'stSp'] = 0;
+  if (t < .5 || g.wrecked) return;
+  var pay = Math.round(t * (9 + spd * .012) * mul);
+  if (pay < 5) return;
+  g.cash += pay; g.earned += pay;
+  g.ev.push({ k: 'pay', a: pay, label: name, sub: t.toFixed(1) + ' s' });
+}
+/* Put the truck back on its wheels where it is. */
+function reset(g, keep) {
+  var V = g.V;
+  V.th = Math.atan(slopeAt(g.T, V.x)); V.om = 0;
+  V.vx *= keep; V.vy = 0;
+  V.y = groundAt(g.T, V.x) - 70;
+  g.inv = 1.2; g.airT = 0; g.rot = 0; g.pend = null; g.whT = 0; g.stT = 0;
+}
+/* Repairs: points of truck damage cost $2 each, suspension and radiator points $1 each. Truck damage comes first. */
+function repairPlan(g) {
+  var lv = 0; if (g.up) UPK.forEach(function (k) { lv += g.up[k] || 0; });
+  /* a more upgraded rig costs more to fix (+5% per level); letting it break outright doubles it */
+  var um = 1 + .05 * lv, pm = ((g.wrecked || g.hp <= 0) ? 2 : 1) * um, pr = PRICE * pm;
+  var sM = Math.ceil(100 - (g.susp == null ? 100 : g.susp) - .0001), rM = Math.ceil(100 - (g.rad == null ? 100 : g.rad) - .0001), hM = Math.ceil(100 - g.hp - .0001);
+  var hG = Math.max(0, Math.min(hM, Math.floor(g.cash / pr))), rest = g.cash - hG * pr;
+  var sG = Math.max(0, Math.min(sM, Math.floor(rest / pm))); rest -= sG * pm;
+  var rG = Math.max(0, Math.min(rM, Math.floor(rest / pm)));
+  return { hp: hG, susp: sG, rad: rG, cost: Math.min(Math.ceil(hG * pr + (sG + rG) * pm - 1e-6), g.cash), um: um, pr: pr };
+}
+function repairCost(g) { return repairPlan(g).cost; }
+/* Repairs and upgrades only happen when you're stopped, flipped over, or being towed. */
+function canService(g) {
+  var V = g.V;
+  return !!(g.tow || g.wrecked || g.svc || (Math.abs(wrapPi(V.th)) > 1.45 && V.bc));
+}
+function repair(g) {
+  if (g.repairLeft > 0) return 0;
+  var pl = repairPlan(g);
+  if (pl.cost < 1 || (g.wrecked && pl.hp < 1)) return 0;
+  g.cash -= pl.cost; g.repairLeft = pl.hp;
+  g.susp = Math.min(100, g.susp + pl.susp); g.rad = Math.min(100, g.rad + pl.rad);
+  if (g.wrecked) { g.wrecked = false; reset(g, 0); g.hp = Math.max(g.hp, 0); }
+  return pl.cost;
+}
+
+if (typeof document === 'undefined') {
+  globalThis.__rc = { createGame: createGame, gameStep: gameStep, repair: repair, reset: reset, groundAt: groundAt, ensureT: function (T, x) { T.ensure(x); }, slopeAt: slopeAt, STEP: STEP, PXM: PXM, MPH: MPH, WR: WR, PRICE: PRICE, BODY: BODY, WH: WH, repairCost: repairCost, repairPlan: repairPlan, TOW_FEE: TOW_FEE, biomeIdx: biomeIdx, BIOMES: BIOMES, PD: PD, X_START: X_START };
+  return;
+}
+
+/* ---------- Game shell ---------- */
+var $ = function (id) { return document.getElementById(id); };
+var cv = $('cv'), ctx = cv.getContext('2d'), court = $('court'), stage = $('stage'), ov = $('ov'), card = $('card');
+var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var DISPLAY = getComputedStyle(document.documentElement).getPropertyValue('--display').trim();
+var BODYF = getComputedStyle(document.documentElement).getPropertyValue('--body').trim();
+
+var store = { best: { dist: 0, speed: 0, time: 0, jump: 0 }, runs: 0, km: 0, veh: 'baja' };
+try {
+  var raw = JSON.parse(localStorage.getItem('bajarc.v1'));
+  if (raw && raw.best) store = { best: { dist: +raw.best.dist || 0, speed: +raw.best.speed || 0, time: +raw.best.time || 0, jump: +raw.best.jump || 0 }, runs: +raw.runs || 0, km: +raw.km || 0, veh: raw.veh === 'tow' ? 'tow' : 'baja', rigs: raw.rigs, rig: raw.rig };
+} catch (e) {}
+function save() { try { localStorage.setItem('bajarc.v1', JSON.stringify(store)); } catch (e) {} }
+
+var KM_UNLOCK = 100000;
+function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function cleanRig(r) {
+  var u = (r && r.up) || {};
+  return { name: String((r && r.name) || 'My Rig').slice(0, 18), up: copyUp(u), run: r && r.run && r.run.seed != null ? r.run : null };
+}
+store.rigs = (store.rigs && store.rigs.length ? store.rigs.slice(0, 3) : [null]).map(cleanRig);
+store.rig = clamp(+store.rig || 0, 0, store.rigs.length - 1);
+store.km = Math.max(+store.km || 0, +(store.best && store.best.dist) || 0); /* lifetime distance never trails your best single run */
+function rigNow() { return store.rigs[store.rig]; }
+function towOK() { return store.km >= KM_UNLOCK; }
+var g = createGame(1234, store.veh === 'tow' && store.km >= KM_UNLOCK ? 'tow' : 'baja'), st = 'intro', last = 0, acc = 0, paused = false, muted = false;
+var keys = { gas: false, brake: false }, zonePtr = {}, cam = { x: 0, y: 0, z: 1 };
+var parts = [], pops = [], banner = null, shake = 0, hurtFlash = 0, ant = { a: 0, w: 0 }, wa = [0, 0], lastVx = 0;
+var Wc = 1, Hc = 1, dpr = 1, vs = 1, towBeep = -1;
+
+/* ---------- Sound ---------- */
+var actx = null, eng = null, noiseBuf = null;
+function audio() {
+  if (!actx) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      /* big-block rumble: a saw, a square an octave down and a harsh octave up, squashed together, low-passed and chopped by a firing-rate tremolo */
+      var o1 = actx.createOscillator(), o2 = actx.createOscillator(), o3 = actx.createOscillator(), g1 = actx.createGain(), g2 = actx.createGain(), g3 = actx.createGain();
+      var ws = actx.createWaveShaper(), f = actx.createBiquadFilter(), trem = actx.createGain(), lfo = actx.createOscillator(), lg = actx.createGain(), gn = actx.createGain(), curve = new Float32Array(256);
+      for (var q = 0; q < 256; q++) { var xq = q / 128 - 1; curve[q] = Math.tanh(3.2 * xq); }
+      o1.type = 'sawtooth'; o2.type = 'square'; o3.type = 'sawtooth'; ws.curve = curve;
+      g1.gain.value = .6; g2.gain.value = .75; g3.gain.value = .16;
+      f.type = 'lowpass'; f.Q.value = 3.5; f.frequency.value = 300;
+      trem.gain.value = .72; lfo.type = 'sine'; lfo.frequency.value = 9; lg.gain.value = .28;
+      gn.gain.value = 0;
+      o1.connect(g1); o2.connect(g2); o3.connect(g3); g1.connect(ws); g2.connect(ws); g3.connect(ws);
+      ws.connect(f); f.connect(trem); trem.connect(gn); gn.connect(actx.destination);
+      lfo.connect(lg); lg.connect(trem.gain);
+      o1.frequency.value = 40; o2.frequency.value = 20; o3.frequency.value = 80;
+      o1.start(); o2.start(); o3.start(); lfo.start();
+      eng = { o1: o1, o2: o2, o3: o3, f: f, lfo: lfo, g: gn, g1: g1, g2: g2, g3: g3, lastThr: 0, popT: 0 };
+      noiseBuf = actx.createBuffer(1, actx.sampleRate * .5, actx.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { actx = null; }
+  }
+  if (actx && actx.state === 'suspended') actx.resume().catch(function () {});
+}
+function blip(f0, f1, dur, vol, type, delay) {
+  var t = actx.currentTime + (delay || 0), o = actx.createOscillator(), gn = actx.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(gn); gn.connect(actx.destination); o.start(t); o.stop(t + dur + .02);
+}
+function crunch(vol, dur, freq) {
+  var t = actx.currentTime, s = actx.createBufferSource(), f = actx.createBiquadFilter(), gn = actx.createGain();
+  s.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.value = freq;
+  gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  s.connect(f); f.connect(gn); gn.connect(actx.destination); s.start(t); s.stop(t + dur + .02);
+}
+function sfx(type, v) {
+  if (muted || !actx || actx.state !== 'running') return;
+  try {
+    if (type === 'thud') { blip(150, 50, .16, Math.min(.35, v / 2200), 'sine'); crunch(Math.min(.25, v / 3500), .12, 700); }
+    else if (type === 'crash') { crunch(.35, .35, 1200); blip(120, 40, .3, .3, 'sawtooth'); }
+    else if (type === 'cash') { blip(880, 880, .09, .13, 'triangle'); blip(1320, 1320, .2, .15, 'triangle', .08); }
+    else if (type === 'big') { blip(660, 660, .1, .14, 'triangle'); blip(880, 880, .1, .14, 'triangle', .09); blip(1320, 1320, .28, .17, 'triangle', .18); }
+    else if (type === 'repair') { blip(300, 600, .25, .12, 'square'); blip(600, 900, .25, .12, 'square', .25); }
+    else if (type === 'smash') { crunch(Math.min(.2, .06 + v / 6000), .09, 2200); blip(520, 260, .06, .05, 'triangle'); }
+    else if (type === 'beep') { blip(1400, 1400, .12, .05, 'square'); }
+    else if (type === 'wreck') { crunch(.4, .6, 900); blip(200, 40, .6, .3, 'sawtooth'); }
+  } catch (e) {}
+}
+/* exhaust tuning: 0 stock rumble, 1 deeper and louder, 2 raspy and high-revving, 3 straight pipes that burble and pop on lift-off */
+var EXH = [
+  { sub: .75, saw: .6, harsh: .16, ff: 1, lfo: 1, vol: 1, f0: 38 },
+  { sub: 1.0, saw: .5, harsh: .1, ff: .8, lfo: .85, vol: 1.25, f0: 32 },
+  { sub: .5, saw: .85, harsh: .42, ff: 1.5, lfo: 1.3, vol: 1.1, f0: 46 },
+  { sub: .9, saw: .7, harsh: .3, ff: 1.15, lfo: 1.5, vol: 1.4, f0: 36 }
+];
+function engineSound() {
+  if (!eng || !actx) return;
+  var t = actx.currentTime, on = !muted && st === 'play' && !g.wrecked, fr = Math.min(1, g.speed / 1000), th = g.V.thr || 0, ex = EXH[g.up ? Math.round(g.up.exh * .3) : 0];
+  var base = ex.f0 + 78 * fr + 20 * th;
+  eng.o1.frequency.setTargetAtTime(base, t, .07);
+  eng.o2.frequency.setTargetAtTime(base * .5, t, .07);
+  eng.o3.frequency.setTargetAtTime(base * 2.01, t, .07);
+  eng.g1.gain.setTargetAtTime(ex.saw, t, .1); eng.g2.gain.setTargetAtTime(ex.sub, t, .1); eng.g3.gain.setTargetAtTime(ex.harsh, t, .1);
+  eng.f.frequency.setTargetAtTime((210 + 430 * fr + 330 * th) * ex.ff, t, .08);
+  eng.lfo.frequency.setTargetAtTime((7 + 20 * fr + 5 * th) * ex.lfo, t, .1);
+  eng.g.gain.setTargetAtTime(on ? (.05 + .07 * th) * ex.vol : 0, t, .08);
+  if (on && g.up.exh >= 9 && eng.lastThr > .6 && th < .3 && g.speed > 200 && t > eng.popT) {
+    eng.popT = t + .5;
+    [0, 70, 160, 250].forEach(function (d, n) { setTimeout(function () { if (!muted && actx && actx.state === 'running') crunch(.1 - n * .015, .05, 1500 + n * 300); }, d + Math.random() * 25); });
+  }
+  eng.lastThr = th;
+}
+
+/* ---------- Layout ---------- */
+function resize() {
+  var r = stage.getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  Wc = cv.width; Hc = cv.height;
+  vs = Math.min(r.width / 1000, r.height / 460) * dpr;
+}
+if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+window.addEventListener('resize', resize);
+
+/* ---------- Input: left of the screen brakes, right of it drives. Keyboard works too. ---------- */
+function inp() { return { gas: keys.gas || hasZone('gas') ? 1 : 0, brake: keys.brake || hasZone('brake') ? 1 : 0 }; }
+function hasZone(z) { for (var k in zonePtr) if (zonePtr[k] === z) return true; return false; }
+function zoneFor(e) {
+  var r = court.getBoundingClientRect();
+  return (e.clientX - r.left) < r.width * .4 ? 'brake' : 'gas';
+}
+court.addEventListener('pointerdown', function (e) {
+  if (e.target.closest('button') || e.target.closest('.overlay') || e.target.closest('#upg')) return;
+  e.preventDefault(); audio();
+  if (st !== 'play') return;
+  zonePtr[e.pointerId] = zoneFor(e);
+  try { court.setPointerCapture(e.pointerId); } catch (x) {}
+});
+court.addEventListener('pointermove', function (e) { if (zonePtr[e.pointerId]) zonePtr[e.pointerId] = zoneFor(e); });
+function dropPtr(e) { delete zonePtr[e.pointerId]; }
+court.addEventListener('pointerup', dropPtr);
+court.addEventListener('pointercancel', dropPtr);
+court.addEventListener('lostpointercapture', dropPtr);
+court.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+window.addEventListener('keydown', function (e) {
+  if (e.target && e.target.tagName === 'INPUT') return;
+  var k = e.key;
+  if (k === 'ArrowRight' || k === 'd' || k === 'D' || k === 'ArrowUp' || k === 'w' || k === 'W') { keys.gas = true; audio(); e.preventDefault(); }
+  else if (k === 'ArrowLeft' || k === 'a' || k === 'A' || k === 'ArrowDown' || k === 's' || k === 'S' || k === ' ') { keys.brake = true; audio(); e.preventDefault(); }
+  else if ((k === 'r' || k === 'R') && st === 'play') doRepair();
+});
+window.addEventListener('keyup', function (e) {
+  if (e.target && e.target.tagName === 'INPUT') return;
+  var k = e.key;
+  if (k === 'ArrowRight' || k === 'd' || k === 'D' || k === 'ArrowUp' || k === 'w' || k === 'W') keys.gas = false;
+  else if (k === 'ArrowLeft' || k === 'a' || k === 'A' || k === 'ArrowDown' || k === 's' || k === 'S' || k === ' ') keys.brake = false;
+});
+window.addEventListener('blur', function () { keys.gas = keys.brake = false; zonePtr = {}; });
+document.addEventListener('visibilitychange', function () { if (document.hidden) { bankKm(); snapRun(); } paused = document.hidden; zonePtr = {}; keys.gas = keys.brake = false; });
+
+/* ---------- HUD ---------- */
+var hud = { dist: $('dist'), spd: $('spd'), time: $('time'), jump: $('jump'), cash: $('cash'), dSub: $('distSub'), sSub: $('spdSub'), tSub: $('timeSub'), jSub: $('jumpSub'), cSub: $('cashSub'), hp: $('hpFill'), hpTxt: $('hpTxt'), tmp: $('tmpFill'), tmpTxt: $('tmpTxt'), pS: $('pSusp'), pR: $('pRad'), rep: $('repair'), gar: $('garage'), pB: $('pBrake'), pG: $('pGas') };
+var shown = {};
+function setT(el, key, html) { if (shown[key] !== html) { shown[key] = html; el.innerHTML = html; } }
+function fmtTime(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ':' + (s < 10 ? '0' : '') + s; }
+function fmtM(n) { return Math.round(n).toLocaleString('en-US'); }
+function mph(v) { return Math.round(v * MPH); }
+function syncHud() {
+  if (st === 'play' && !towOK() && store.km + (g.dist - g.banked) >= KM_UNLOCK) bankKm();
+  var b = store.best;
+  setT(hud.dist, 'dist', fmtM(g.dist) + '<small>m</small>');
+  setT(hud.dSub, 'dSub', 'Best ' + fmtM(Math.max(b.dist, g.dist)) + ' m');
+  setT(hud.spd, 'spd', mph(g.speed) + '<small>mph</small>');
+  setT(hud.sSub, 'sSub', 'Top ' + mph(g.topSpeed) + ' · Best ' + Math.round(Math.max(b.speed, g.topSpeed * MPH)));
+  setT(hud.time, 'time', fmtTime(g.time));
+  setT(hud.tSub, 'tSub', 'Best ' + fmtTime(Math.max(b.time, g.time)));
+  setT(hud.jump, 'jump', fmtM(g.longJump) + '<small>m</small>');
+  setT(hud.jSub, 'jSub', 'Best ' + fmtM(Math.max(b.jump, g.longJump)) + ' m');
+  setT(hud.cash, 'cash', '$' + fmtM(g.cash));
+  setT(hud.cSub, 'cSub', 'Earned $' + fmtM(g.earned) + (g.smashed ? ' \u00b7 Smashed ' + g.smashed : ''));
+  var hp = Math.max(0, Math.ceil(g.hp));
+  setT(hud.hpTxt, 'hpTxt', g.veh === 'tow' ? 'Indestructible' : hp + '%');
+  hud.hp.style.width = hp + '%';
+  hud.hp.style.background = hp > 55 ? 'var(--good)' : hp > 25 ? 'var(--warn)' : 'var(--bad)';
+  var tp = Math.round(g.temp * 100);
+  setT(hud.tmpTxt, 'tmpTxt', g.veh === 'tow' ? 'Cool' : g.hot ? 'Overheated' : tp + '%');
+  hud.tmp.style.width = tp + '%';
+  hud.tmp.style.background = g.hot || g.temp > .85 ? 'var(--bad)' : g.temp > .6 ? 'var(--warn)' : '#6cc3ff';
+  var su = Math.round(g.susp), ra = Math.round(g.rad);
+  setT(hud.pS, 'pS', 'Suspension ' + su + '%'); hud.pS.className = su < 40 ? 'worse' : su < 80 ? 'bad' : '';
+  setT(hud.pR, 'pR', 'Radiator ' + ra + '%'); hud.pR.className = ra < 40 ? 'worse' : ra < 80 ? 'bad' : '';
+  var cost = repairCost(g), can = st === 'play' && cost >= 1 && g.repairLeft === 0 && canService(g);
+  hud.rep.disabled = !can;
+  setT(hud.rep, 'rep', g.repairLeft > 0 ? 'Repairing…' : can ? 'Repair $' + cost : cost >= 1 && st === 'play' ? 'Stop to repair' : 'Repair');
+  hud.rep.classList.toggle('urgent', can && hp < 35);
+  if (upgOpen && !canService(g)) upgHide();
+  var svc = canService(g);
+  hud.gar.hidden = !(st === 'play' && svc && !g.tow && !g.wrecked && g.veh !== 'tow'); /* the tow truck has no upgrades */
+  var on = inp();
+  hud.pB.classList.toggle('on', !!on.brake); hud.pG.classList.toggle('on', !!on.gas);
+}
+
+/* ---------- Cards ---------- */
+function showCard(html) { card.innerHTML = html; ov.hidden = false; var p = card.querySelector('.primary, .good'); if (p) p.focus({ preventScroll: true }); }
+function bestGrid(cur) {
+  var b = store.best, nb = cur ? cur.nb : {};
+  function cell(l, v, k) { return '<div><span class="lab">' + l + '</span><span class="val">' + v + '</span>' + (nb[k] ? '<em>New best</em>' : '') + '</div>'; }
+  var d = cur ? cur.d : b;
+  return '<div class="grid">' + cell('Distance', fmtM(d.dist) + '<small>m</small>', 'dist') + cell('Top speed', mph(d.speed) + '<small>mph</small>', 'speed') +
+    cell('Time on road', fmtTime(d.time), 'time') + cell('Longest jump', fmtM(d.jump) + '<small>m</small>', 'jump') + '</div>';
+}
+function bankKm() {
+  if (!g || g.banked == null) return;
+  var add = Math.max(0, g.dist - g.banked); if (!add) return;
+  var was = towOK(); store.km += add; g.banked = g.dist; save();
+  if (!was && towOK()) pops.push({ text: 'Tow truck unlocked', sub: '100 km driven. Choose it when you start a run', c: '#ffc43a', t: -2.6, big: true });
+}
+var upg = $('upg'), upgOpen = false;
+function upgHide() { upgOpen = false; upg.hidden = true; if (g.tow) g.tow.hold = false; }
+function upgRender() {
+  var h = '<h3>' + (g.tow ? 'Tow\'s here. Upgrade?' : 'Garage') + '</h3>', k;
+  UPK.forEach(function (k) {
+    var lv = g.up[k], max = lv >= UPMAX, cost = max ? 0 : UPC[k][lv], ok = !max && g.cash >= cost;
+    h += '<button class="u" type="button" data-k="' + k + '"' + (ok ? '' : ' disabled') + '><b>' + UPN[k][0] + ' <small>Lv ' + lv + '/' + UPMAX + ' \u00b7 ' + UPN[k][1] + '</small></b><i>' + (max ? 'MAX' : '$' + cost) + '</i></button>';
+  });
+  h += '<button class="done" type="button" id="upgDone">Done ($' + fmtM(g.cash) + ')</button>';
+  upg.innerHTML = h;
+  Array.prototype.forEach.call(upg.querySelectorAll('.u'), function (b) {
+    b.onclick = function () {
+      var k = b.getAttribute('data-k'), lv = g.up[k]; if (lv >= UPMAX || g.cash < UPC[k][lv]) return;
+      g.cash -= UPC[k][lv]; g.up[k]++; applyUps(g); rigNow().up = copyUp(g.up); save(); sfx('repair'); pops.push({ text: UPN[k][0] + ' Lv ' + g.up[k], sub: 'upgraded', c: '#8be26c', t: 0 }); upgRender();
+    };
+  });
+  $('upgDone').onclick = upgHide;
+}
+function upgOpenIf() {
+  var min = 1e9; UPK.forEach(function (k) { if (g.up[k] < UPMAX) min = Math.min(min, UPC[k][g.up[k]]); });
+  if (g.cash < min) return;
+  upgOpen = true; upg.hidden = false; if (g.tow) g.tow.hold = true; upgRender();
+}
+var snapT = 0;
+function snapRun() {
+  if (st !== 'play' || g.wrecked || g.dist < 5) return;
+  bankKm();
+  rigNow().run = { seed: g.seed, x: Math.round(g.V.x), dist: g.dist, cash: g.cash, earned: g.earned, hp: g.hp, susp: g.susp, rad: g.rad, time: g.time, top: g.topSpeed, lj: g.longJump, sm: g.smashed, tn: g.towN, dn: g.dripN, veh: g.veh };
+  save();
+}
+window.addEventListener('pagehide', function () { bankKm(); snapRun(); });
+function startPlay() {
+  parts = []; pops = []; banner = null; shake = 0; hurtFlash = 0; shown = {}; zonePtr = {};
+  cam.x = g.V.x; cam.y = g.V.y; cam.z = 1; ant.a = 0; ant.w = 0;
+  ov.hidden = true; st = 'play'; upgHide(); $('rigLab').textContent = rigNow().name;
+}
+function resumeRun(sn) {
+  g = createGame(sn.seed, sn.veh === 'tow' && towOK() ? 'tow' : 'baja');
+  var r = rigNow(); g.up = g.veh === 'tow' ? copyUp({}) : copyUp(r.up); applyUps(g);
+  g.T.ensure(sn.x + 3000);
+  var V = g.V; V.x = sn.x; V.y = groundAt(g.T, V.x) - 62; V.th = Math.atan(slopeAt(g.T, V.x)); V.vx = V.vy = V.om = 0;
+  g.dist = sn.dist; g.cash = sn.cash; g.earned = sn.earned; g.hp = Math.max(1, sn.hp); g.susp = sn.susp; g.rad = sn.rad; g.time = sn.time; g.topSpeed = sn.top;
+  g.longJump = sn.lj; g.smashed = sn.sm; g.towN = sn.tn; g.dripN = sn.dn; g.banked = sn.dist; g.propX = sn.x + 700; g.zone = biomeIdx(sn.dist); g.inv = 1.5;
+  startPlay();
+}
+function showIntro() {
+  st = 'intro'; zonePtr = {};
+  var r = rigNow(), mods = [], i;
+  for (i = 0; i < UPK.length; i++) if (r.up[UPK[i]]) mods.push(UPN[UPK[i]][0] + ' ' + r.up[UPK[i]]);
+  var chips = store.rigs.map(function (x, n) { return '<button class="btn' + (n === store.rig ? ' sel' : '') + '" data-rig="' + n + '" type="button">' + esc(x.name) + '</button>'; }).join('') + (store.rigs.length < 3 ? '<button class="btn" id="rigNew" type="button">+ Rig</button>' : '');
+  showCard('<h1>Baja <em>RC</em></h1>' +
+    '<p>Hold the <b>right</b> side for <b>gas</b>, the <b>left</b> for <b>brake</b> (it reverses too). In the air, gas tips the nose up and brake tips it down, so line up your landings. Repairs and upgrades happen when you\'re stopped or flipped.</p>' +
+    (store.runs ? '<span class="kicker">Best ' + fmtM(store.best.dist) + ' m · ' + mph(store.best.speed / MPH) + ' mph top · ' + fmtM(store.best.jump) + ' m jump</span>' : '') +
+    '<span class="kicker">Your rig</span><div class="row">' + chips + '</div>' +
+    '<input class="rigname" id="rigName" maxlength="18" value="' + esc(r.name) + '" aria-label="Rig name" onfocus="this.select()">' +
+    '<span class="kicker">Mods: ' + (mods.length ? mods.join(' · ') : 'stock') + '</span>' +
+    '<div class="row">' + (r.run ? '<button class="btn primary" id="cont" type="button">Continue · ' + fmtM(r.run.dist) + ' m</button><button class="btn" id="go" type="button">New run</button>' : '<button class="btn primary" id="go" type="button">Drive</button>') + '</div>' +
+    '<span class="keys">Keyboard: → or D gas · ← or A brake · R repair</span>' +
+    (towOK() ? '<a href="#" class="vlink" id="vSwap">' + (store.veh === 'tow' ? 'Switch back to the Baja RC' : 'Drive the tow truck instead') + '</a>' : ''));
+  $('go').onclick = function () { audio(); newRun(); };
+  if ($('cont')) $('cont').onclick = function () { audio(); resumeRun(rigNow().run); };
+  if ($('vSwap')) $('vSwap').onclick = function (e) { e.preventDefault(); store.veh = store.veh === 'tow' ? 'baja' : 'tow'; save(); showIntro(); };
+  /* secret: tap the title 7 times to unlock the tow truck */
+  var h1 = card.querySelector('h1'), taps = 0, tapT = 0;
+  if (h1 && !towOK()) h1.onclick = function () {
+    var n = Date.now(); taps = n - tapT < 900 ? taps + 1 : 1; tapT = n;
+    if (taps >= 7) { store.km = Math.max(store.km, KM_UNLOCK); save(); sfx('big'); pops.push({ text: 'Tow truck unlocked', sub: 'Choose it when you start a run', c: '#ffc43a', t: 0, big: true }); showIntro(); }
+  };
+  Array.prototype.forEach.call(card.querySelectorAll('[data-rig]'), function (b) { b.onclick = function () { store.rig = +b.getAttribute('data-rig'); save(); showIntro(); }; });
+  if ($('rigNew')) $('rigNew').onclick = function () { store.rigs.push(cleanRig({ name: 'Rig ' + (store.rigs.length + 1) })); store.rig = store.rigs.length - 1; save(); showIntro(); };
+  $('rigName').oninput = function () {
+    rigNow().name = this.value.slice(0, 18) || 'My Rig'; save();
+    var chip = card.querySelector('[data-rig="' + store.rig + '"]'); if (chip) chip.textContent = rigNow().name;
+  };
+}
+function runSummary() {
+  var d = { dist: g.dist, speed: g.topSpeed * MPH, time: g.time, jump: g.longJump }, b = store.best;
+  var nb = { dist: d.dist > b.dist + .5, speed: d.speed > b.speed + .5, time: d.time > b.time + .5, jump: d.jump > b.jump + .5 };
+  return { d: d, nb: nb };
+}
+function commitRun() {
+  var s = runSummary(), b = store.best;
+  b.dist = Math.max(b.dist, s.d.dist); b.speed = Math.max(b.speed, s.d.speed); b.time = Math.max(b.time, s.d.time); b.jump = Math.max(b.jump, s.d.jump);
+  store.runs++; bankKm(); rigNow().run = null; save();
+  return s;
+}
+function showWrecked() {
+  st = 'wrecked'; zonePtr = {};
+  var pl = repairPlan({ hp: 0, cash: g.cash, susp: g.susp, rad: g.rad, up: g.up }), cost = pl.cost, can = pl.hp >= 20;
+  showCard('<div class="kicker">' + fmtM(g.dist) + ' m · ' + fmtTime(g.time) + ' on the road</div><h2>Wrecked</h2>' +
+    '<p>' + (can ? 'You have $' + fmtM(g.cash) + ' to put the truck back together. A repair here restores ' + pl.hp + '% truck damage' + (pl.susp || pl.rad ? ' plus the suspension and radiator you can afford' : '') + ' and sets it back on its wheels.' :
+      'A wreck costs double to fix: $' + (Math.round(pl.pr * 10) / 10) + ' per point, and you need at least $' + Math.ceil(20 * pl.pr) + ' to get moving again. You have $' + fmtM(g.cash) + '.') + '</p>' +
+    '<div class="row">' + (can ? '<button class="btn good" id="fix" type="button">Repair $' + cost + '</button>' : '') + '<button class="btn' + (can ? '' : ' primary') + '" id="fin" type="button">End run</button></div>');
+  if (can) $('fix').onclick = function () { audio(); doRepair(); if (!g.wrecked) { ov.hidden = true; st = 'play'; } };
+  $('fin').onclick = function () { showOver(); };
+}
+function showOver() {
+  st = 'over'; zonePtr = {};
+  var s = commitRun();
+  showCard('<div class="kicker">Run over</div><h2>' + fmtM(g.dist) + ' m</h2>' + bestGrid(s) +
+    '<div class="kicker">Earned $' + fmtM(g.earned) + ' in tricks and distance \u00b7 smashed ' + g.smashed + ' things</div>' +
+    '<div class="row"><button class="btn" id="menu" type="button">Menu</button><button class="btn primary" id="again" type="button">Drive again</button></div>');
+  $('again').onclick = function () { audio(); newRun(); };
+  $('menu').onclick = function () { showIntro(); };
+}
+function newRun() {
+  g = createGame((Math.random() * 1e9) | 0, store.veh === 'tow' && towOK() ? 'tow' : 'baja');
+  var r = rigNow(); g.up = g.veh === 'tow' ? copyUp({}) : copyUp(r.up); applyUps(g); r.run = null; save();
+  startPlay();
+}
+function doRepair() {
+  if (st !== 'play' && st !== 'wrecked') return;
+  if (st === 'play' && !canService(g)) return;
+  var cost = repair(g);
+  if (cost) { sfx('repair'); pops.push({ text: 'Repaired', sub: '-$' + cost, c: '#8be26c', t: 0 }); }
+}
+hud.rep.addEventListener('click', function () { audio(); doRepair(); });
+hud.gar.addEventListener('click', function () { audio(); if (upgOpen) upgHide(); else if (canService(g)) { upgOpen = true; upg.hidden = false; upgRender(); } });
+$('end').onclick = function () { if (st === 'play') showOver(); };
+$('snd').onclick = function () { muted = !muted; audio(); this.textContent = muted ? 'Sound off' : 'Sound on'; this.setAttribute('aria-pressed', muted ? 'true' : 'false'); };
+
+/* ---------- Events from the rules ---------- */
+function burst(x, y, n, col, spd, up) {
+  if (reduce) n = Math.ceil(n / 3);
+  for (var i = 0; i < n; i++) parts.push({ x: x, y: y, vx: (Math.random() - .5) * spd, vy: -Math.random() * up - 20, life: 1, d: 1.2 + Math.random(), s: 3 + Math.random() * 5, c: col });
+}
+function drain() {
+  var ev = g.ev; g.ev = [];
+  for (var i = 0; i < ev.length; i++) {
+    var e = ev[i];
+    if (e.k === 'dmg') {
+      var a = Math.round(e.a);
+      if (a >= 1) { pops.push({ text: '-' + a + '%', sub: e.why, c: '#ff7a5c', t: 0 }); hurtFlash = Math.min(1, hurtFlash + a / 25); shake = Math.min(14, shake + a * .6); sfx('crash'); }
+    } else if (e.k === 'part') {
+      if (e.a >= 2) { pops.push({ text: '-' + Math.round(e.a) + '% ' + e.what, sub: e.what === 'Radiator' ? 'runs hotter, less power' : 'softer, bouncier ride', c: '#ffb020', t: 0 }); shake = Math.min(14, shake + 3); }
+    } else if (e.k === 'hot') {
+      pops.push({ text: 'Overheated', sub: 'power cut, ease off the gas', c: '#ff7a5c', t: 0 }); sfx('crash');
+    } else if (e.k === 'smash') {
+      var sd = PD[e.what], sc1 = rgba(sd.frag[0].c), sc2 = rgba(sd.frag[Math.min(1, sd.frag.length - 1)].c);
+      if (e.hard) { sfx('smash', e.v); burst(e.x, e.y, 9, sc1, 300, 300); burst(e.x, e.y, 5, sc2, 260, 260); shake = Math.min(14, shake + 2.5); }
+      else { sfx('smash', e.v * .45); burst(e.x, e.y + sd.h * .3, 4, sc1, 160, 130); }
+    } else if (e.k === 'hit') {
+      sfx('thud', e.v); burst(e.x, e.y, Math.min(14, Math.floor(e.v / 60)), 'rgba(226,176,114,', 160, 130);
+    } else if (e.k === 'pay') {
+      pops.push({ text: '+$' + e.a, sub: e.label + ' · ' + e.sub, c: '#ffc43a', t: 0, big: e.a >= 100 }); sfx(e.a >= 100 ? 'big' : 'cash');
+    } else if (e.k === 'zone') {
+      banner = { text: e.name, t: 0 }; bankKm();
+    } else if (e.k === 'soak') {
+      pops.push({ text: 'Suspension soaked it', sub: 'saved ' + e.a + '% damage', c: '#8be26c', t: 0 });
+    } else if (e.k === 'rival') {
+    } else if (e.k === 'selfright') {
+      pops.push({ text: 'Arm out', sub: 'the recovery arm sets it back up', c: '#8be26c', t: 0 });
+    } else if (e.k === 'tow') {
+      upgOpenIf();
+      pops.push({ text: 'Tow truck called', sub: e.fee ? '-$' + e.fee + ' to flip you back over' : 'no cash, so it\'s on the house', c: '#ffc43a', t: 0 });
+    } else if (e.k === 'towflip') {
+      sfx('thud', 1400); shake = Math.min(14, shake + 6); burst(g.V.x, g.V.y + 20, 10, 'rgba(226,176,114,', 220, 160);
+    } else if (e.k === 'wreck') {
+      sfx('wreck'); shake = 14; banner = null;
+      burst(g.V.x, g.V.y - 20, 24, 'rgba(60,50,45,', 260, 260);
+      setTimeout(function () { if (st === 'play' && g.wrecked) showWrecked(); }, 900);
+    }
+  }
+}
+
+/* ---------- Drawing ---------- */
+var lerp = function (a, b, t) { return a + (b - a) * t; };
+function mix(c1, c2, t) { return [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)]; }
+function rgb(c, a) { return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (a == null ? 1 : a) + ')'; }
+function rgba(h) { return 'rgba(' + parseInt(h.substr(1, 2), 16) + ',' + parseInt(h.substr(3, 2), 16) + ',' + parseInt(h.substr(5, 2), 16) + ','; }
+var SKY = [[[92, 160, 214], [248, 224, 176]], [[86, 76, 150], [250, 156, 98]], [[22, 26, 64], [196, 88, 92]]];
+function skyAt(p) { var a = p < .5 ? 0 : 1, t = p < .5 ? p * 2 : (p - .5) * 2; return [mix(SKY[a][0], SKY[a + 1][0], t), mix(SKY[a][1], SKY[a + 1][1], t)]; }
+var PAL = [
+  { sky: [[112, 170, 222], [250, 232, 198]], sand: [172, 166, 156], sandD: [120, 112, 104], r: [[158, 164, 190], [136, 144, 172], [114, 124, 152]], rock: [122, 112, 108] },
+  { sky: [[92, 160, 214], [248, 224, 176]], sand: [226, 176, 114], sandD: [185, 120, 60], r: [[208, 160, 132], [196, 128, 96], [200, 132, 84]], rock: [122, 112, 108] },
+  { sky: [[108, 168, 204], [214, 232, 214]], sand: [140, 108, 70], sandD: [92, 68, 44], r: [[134, 172, 160], [78, 128, 104], [42, 92, 72]], rock: [110, 104, 98] },
+  { sky: [[116, 178, 226], [255, 236, 192]], sand: [240, 202, 130], sandD: [208, 152, 82], r: [[238, 200, 148], [228, 182, 118], [216, 164, 94]], rock: [140, 118, 96] },
+  { sky: [[124, 158, 208], [226, 232, 246]], sand: [154, 150, 146], sandD: [104, 102, 104], r: [[176, 190, 220], [138, 154, 190], [100, 118, 150]], rock: [118, 118, 124] },
+  { sky: [[96, 150, 204], [250, 204, 154]], sand: [198, 106, 70], sandD: [140, 64, 44], r: [[204, 124, 94], [172, 90, 62], [134, 64, 48]], rock: [112, 74, 62] }
+];
+function blendPal(A, B, t) {
+  return { sky: [mix(A.sky[0], B.sky[0], t), mix(A.sky[1], B.sky[1], t)], sand: mix(A.sand, B.sand, t), sandD: mix(A.sandD, B.sandD, t),
+           r: [mix(A.r[0], B.r[0], t), mix(A.r[1], B.r[1], t), mix(A.r[2], B.r[2], t)], rock: mix(A.rock, B.rock, t) };
+}
+function palAt(dm) {
+  var a = biomeIdx(dm), b = a, t = 0, k;
+  for (k = 10; k <= 160; k += 10) { var nb = biomeIdx(dm + k); if (nb !== a) { b = nb; t = 1 - k / 160; break; } }
+  return { a: a, b: b, t: t, P: t > 0 ? blendPal(PAL[a], PAL[b], t) : PAL[a] };
+}
+function hsh(n) { return (((n * 2654435761) >>> 0) % 1000) / 1000; }
+function skyline(par, baseY, col) {
+  var c = ctx, cx = cam.x * par, b0 = Math.floor(cx / 60), b1 = Math.floor((cx + Wc / vs) / 60) + 1;
+  c.fillStyle = col;
+  for (var b = b0; b <= b1; b++) {
+    var h = hsh(b + 7), hh = 36 + h * h * 150 + (b % 3) * 12, X = (b * 60 - cx) * vs;
+    c.fillRect(X, baseY - hh * vs, 61 * vs, hh * vs + Hc);
+    if (h > .72) c.fillRect(X + 24 * vs, baseY - (hh + 24) * vs, 6 * vs, 24 * vs);
+  }
+}
+function treeline(par, baseY, col, size) {
+  var c = ctx, cx = cam.x * par, st0 = 34, b0 = Math.floor(cx / st0) - 1, b1 = Math.floor((cx + Wc / vs) / st0) + 1;
+  c.fillStyle = col; c.fillRect(0, baseY, Wc, Hc);
+  c.beginPath();
+  for (var b = b0; b <= b1; b++) {
+    var h = hsh(b + 3), hh = size * (.55 + .7 * h), X = (b * st0 - cx) * vs, w = (14 + h * 14) * vs;
+    c.moveTo(X - w, baseY + 2); c.lineTo(X, baseY - hh * vs); c.lineTo(X + w, baseY + 2);
+  }
+  c.fill();
+}
+function backdrop(bi, al, P, horizon, snowGrad) {
+  var c = ctx, key = BIOMES[bi].key;
+  c.globalAlpha = al;
+  if (key === 'town') {
+    range(.08, horizon - 40 * vs, 100, 700, rgb(P.r[0]));
+    skyline(.18, horizon + 24 * vs, rgb(P.r[1])); skyline(.32, horizon + 74 * vs, rgb(P.r[2]));
+  } else if (key === 'forest') {
+    range(.08, horizon - 40 * vs, 150, 700, rgb(P.r[0]));
+    treeline(.16, horizon + 30 * vs, rgb(P.r[1]), 90); treeline(.3, horizon + 76 * vs, rgb(P.r[2]), 120);
+  } else if (key === 'mount') {
+    var by = horizon - 40 * vs, gr = ctx.createLinearGradient(0, by - 190 * vs, 0, by + 20 * vs);
+    gr.addColorStop(0, '#f7faff'); gr.addColorStop(.38, rgb(mix(P.r[0], [255, 255, 255], .55))); gr.addColorStop(.62, rgb(P.r[0])); gr.addColorStop(1, rgb(P.r[0]));
+    range(.07, by, 240, 900, gr);
+    range(.18, horizon + 10 * vs, 150, 560, rgb(P.r[1]));
+    treeline(.3, horizon + 70 * vs, rgb(P.r[2]), 80);
+  } else if (key === 'canyon') {
+    range(.08, horizon - 30 * vs, 130, 800, rgb(P.r[0]), true);
+    range(.18, horizon + 14 * vs, 120, 600, rgb(P.r[1]), true);
+    range(.32, horizon + 62 * vs, 80, 420, rgb(P.r[2]), true);
+  } else {
+    range(.08, horizon - 40 * vs, key === 'dunes' ? 90 : 150, key === 'dunes' ? 900 : 700, rgb(P.r[0]));
+    range(.18, horizon + 10 * vs, key === 'dunes' ? 80 : 110, key === 'dunes' ? 700 : 520, rgb(P.r[1]));
+    range(.32, horizon + 60 * vs, 70, 380, rgb(P.r[2]));
+  }
+  c.globalAlpha = 1;
+}
+function range(par, baseY, amp, wl, col, mesa) {
+  var c = ctx, cx = cam.x * par;
+  c.fillStyle = col; c.beginPath(); c.moveTo(0, Hc);
+  for (var X = 0; X <= Wc + 24; X += 24) {
+    var wx = cx + X / vs;
+    var h = .5 + .28 * Math.sin(wx / wl) + .2 * Math.sin(wx / (wl * .43) + 1.7) + .12 * Math.sin(wx / (wl * .17) + .4);
+    if (mesa) h = Math.floor(h * 3.2) / 3.2 + .06 * Math.sin(wx / (wl * .11));
+    c.lineTo(X, baseY - amp * h * vs);
+  }
+  c.lineTo(Wc, Hc); c.closePath(); c.fill();
+}
+function drawWheel(c, x, y, ang) {
+  c.save(); c.translate(x, y); c.rotate(ang);
+  c.fillStyle = '#1c1612'; c.beginPath(); c.arc(0, 0, WR, 0, TAU); c.fill();
+  c.fillStyle = '#2d251f';
+  for (var i = 0; i < 12; i++) { c.rotate(TAU / 12); c.fillRect(WR - 4.5, -2.4, 6.5, 4.8); }
+  c.fillStyle = '#3a3029'; c.beginPath(); c.arc(0, 0, WR - 4, 0, TAU); c.fill();
+  c.fillStyle = '#c9c2b6'; c.beginPath(); c.arc(0, 0, 9, 0, TAU); c.fill();
+  c.fillStyle = '#ffc43a'; c.beginPath(); c.arc(0, 0, 3.2, 0, TAU); c.fill();
+  c.fillStyle = '#6f675c';
+  for (var k = 0; k < 5; k++) { c.rotate(TAU / 5); c.fillRect(2, -1, 6, 2); }
+  c.restore();
+}
+
+function drawProp(c, p) {
+  c.save(); c.translate(p.x, p.y); c.rotate(p.a); c.translate(0, p.cy);
+  var k = p.k, i;
+  if (k === 'frag') {
+    c.fillStyle = p.c;
+    if (p.s === 'blob') { c.beginPath(); c.arc(0, -p.r, p.r, 0, TAU); c.fill(); }
+    else c.fillRect(-p.w / 2, -p.h, p.w, p.h);
+  } else if (k === 'bush') {
+    c.scale(1.35, 1.35);
+    c.fillStyle = '#5e8a46';
+    c.beginPath(); c.arc(-9, -9, 9, 0, TAU); c.arc(5, -12, 11, 0, TAU); c.arc(14, -6, 7, 0, TAU); c.arc(-1, -5, 9, 0, TAU); c.fill();
+    c.fillStyle = '#7fae5c'; c.beginPath(); c.arc(3, -16, 5, 0, TAU); c.arc(-9, -13, 4, 0, TAU); c.fill();
+    c.fillStyle = '#3f6a30'; c.fillRect(-12, -3, 26, 3);
+    c.fillStyle = '#e9d36b'; c.fillRect(-2, -10, 2, 2); c.fillRect(8, -5, 2, 2);
+  } else if (k === 'cone') {
+    c.scale(1.35, 1.35);
+    c.fillStyle = '#1d1814'; c.fillRect(-9, -3, 18, 3);
+    c.fillStyle = '#ff7a1c'; c.beginPath(); c.moveTo(-7, -3); c.lineTo(-2.5, -26); c.lineTo(2.5, -26); c.lineTo(7, -3); c.closePath(); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.moveTo(-5.2, -11); c.lineTo(5.2, -11); c.lineTo(4.2, -17); c.lineTo(-4.2, -17); c.closePath(); c.fill();
+  } else if (k === 'barrier') {
+    c.scale(1.85, 1.65);
+    c.fillStyle = '#6a625a'; c.fillRect(-27, -22, 4, 22); c.fillRect(23, -22, 4, 22);
+    c.fillStyle = '#f4efe6'; c.fillRect(-34, -30, 68, 14);
+    c.save(); c.beginPath(); c.rect(-34, -30, 68, 14); c.clip(); c.fillStyle = '#e4402a';
+    for (i = -40; i < 40; i += 16) { c.beginPath(); c.moveTo(i, -16); c.lineTo(i + 8, -16); c.lineTo(i + 16, -30); c.lineTo(i + 8, -30); c.closePath(); c.fill(); }
+    c.restore();
+    c.strokeStyle = '#2b241e'; c.lineWidth = 1.2; c.strokeRect(-34, -30, 68, 14);
+    c.fillStyle = '#ffc43a'; c.fillRect(-4, -36, 8, 6);
+  } else if (k === 'trash') {
+    c.fillStyle = '#5d7a58'; c.fillRect(-20, -32, 40, 32);
+    c.fillStyle = '#4a6446'; c.fillRect(-20, -22, 40, 3); c.fillRect(-20, -11, 40, 3);
+    c.fillStyle = '#3a4f38'; c.beginPath(); c.moveTo(-23, -32); c.lineTo(23, -32); c.lineTo(20, -39); c.lineTo(-20, -39); c.closePath(); c.fill();
+    c.fillStyle = '#1b1612'; c.beginPath(); c.arc(-13, 1, 4, 0, TAU); c.arc(13, 1, 4, 0, TAU); c.fill();
+  } else if (k === 'fence') {
+    c.fillStyle = '#f6f2ea';
+    for (i = 0; i < 6; i++) { var fx = -46 + i * 18; c.beginPath(); c.moveTo(fx - 5, 0); c.lineTo(fx - 5, -31); c.lineTo(fx, -37); c.lineTo(fx + 5, -31); c.lineTo(fx + 5, 0); c.closePath(); c.fill(); }
+    c.fillStyle = '#e3ddd0'; c.fillRect(-50, -26, 100, 5); c.fillRect(-50, -10, 100, 5);
+  } else if (k === 'sapling') {
+    c.fillStyle = '#6b4a2e'; c.fillRect(-4, -26, 8, 26);
+    c.fillStyle = '#2f6a3c'; c.beginPath(); c.moveTo(-24, -22); c.lineTo(0, -62); c.lineTo(24, -22); c.closePath(); c.fill();
+    c.fillStyle = '#3a7a46'; c.beginPath(); c.moveTo(-19, -46); c.lineTo(0, -80); c.lineTo(19, -46); c.closePath(); c.fill();
+    c.fillStyle = '#4a8c54'; c.beginPath(); c.moveTo(-12, -66); c.lineTo(0, -92); c.lineTo(12, -66); c.closePath(); c.fill();
+  } else if (k === 'logs') {
+    var lg = [[-24, -10, 20], [10, -10, 20], [-7, -29, 20]];
+    for (i = 0; i < 3; i++) {
+      c.fillStyle = '#8a5a34'; c.fillRect(lg[i][0] - 24, lg[i][1] - 10, 48, 20);
+      c.fillStyle = '#c99a62'; c.beginPath(); c.ellipse(lg[i][0] + 24, lg[i][1], 5, 10, 0, 0, TAU); c.fill();
+      c.strokeStyle = '#6a4222'; c.lineWidth = 1.5; c.beginPath(); c.arc(lg[i][0] + 24, lg[i][1], 3, 0, TAU); c.stroke();
+    }
+  } else if (k === 'cactus') {
+    c.fillStyle = '#4e8a48';
+    c.fillRect(-6, -70, 12, 70);
+    c.fillRect(-22, -42, 17, 8); c.fillRect(-22, -58, 8, 24);
+    c.fillRect(5, -30, 17, 8); c.fillRect(14, -46, 8, 24);
+    c.fillStyle = '#6aa862'; c.fillRect(-2, -66, 3, 60);
+    c.fillStyle = '#e8a0b0'; c.beginPath(); c.arc(0, -72, 4, 0, TAU); c.fill();
+  } else if (k === 'tumbleweed') {
+    c.translate(0, -17); c.strokeStyle = '#a8895a'; c.lineWidth = 2;
+    for (i = 0; i < 7; i++) { c.rotate(Math.PI / 7); c.beginPath(); c.ellipse(0, 0, 17, 9, 0, 0, TAU); c.stroke(); }
+  } else if (k === 'barrel') {
+    c.fillStyle = '#c0392b'; c.fillRect(-15, -44, 30, 44);
+    c.fillStyle = '#962b20'; c.fillRect(-15, -34, 30, 3); c.fillRect(-15, -12, 30, 3);
+    c.fillStyle = '#e8574a'; c.fillRect(-12, -42, 4, 40);
+    c.fillStyle = '#2b241e'; c.fillRect(-15, -46, 30, 3);
+    c.fillStyle = '#ffd24a'; c.fillRect(-6, -26, 12, 6);
+  } else if (k === 'snowman') {
+    c.fillStyle = '#f4f7fb'; c.beginPath(); c.arc(0, -22, 22, 0, TAU); c.fill();
+    c.beginPath(); c.arc(0, -56, 16, 0, TAU); c.fill(); c.beginPath(); c.arc(0, -80, 11, 0, TAU); c.fill();
+    c.fillStyle = '#c9d4e4'; c.beginPath(); c.arc(7, -18, 15, -.6, 1.2); c.lineTo(0, -18); c.fill();
+    c.fillStyle = '#ff8a2a'; c.beginPath(); c.moveTo(0, -80); c.lineTo(14, -78); c.lineTo(0, -76); c.closePath(); c.fill();
+    c.fillStyle = '#1b1612'; c.fillRect(-4, -83, 2, 2); c.fillRect(3, -83, 2, 2); c.fillRect(-9, -90, 18, 4); c.fillRect(-6, -98, 12, 9);
+    c.strokeStyle = '#6b4a2e'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(-14, -58); c.lineTo(-30, -70); c.moveTo(14, -58); c.lineTo(30, -66); c.stroke();
+  } else if (k === 'crate') {
+    c.fillStyle = '#b8793e'; c.fillRect(-26, -46, 52, 46);
+    c.strokeStyle = '#7a4a22'; c.lineWidth = 4; c.strokeRect(-24, -44, 48, 42);
+    c.beginPath(); c.moveTo(-24, -44); c.lineTo(24, -2); c.moveTo(24, -44); c.lineTo(-24, -2); c.stroke();
+  }
+  c.restore();
+}
+
+/* A big yellow recovery truck: long hood, split-window cab, headache rack, toolbox and a recovery boom. Faces right. Origin: body centre, wheel centres 14 below. */
+function towBody(c, now, noBoom) {
+  var k = .127;
+  function X(px) { return (740 - px) * k; }
+  function Y(py) { return 14 + (py - 650) * k; }
+  function poly(pts, col) { c.fillStyle = col; c.beginPath(); c.moveTo(X(pts[0][0]), Y(pts[0][1])); for (var i = 1; i < pts.length; i++) c.lineTo(X(pts[i][0]), Y(pts[i][1])); c.closePath(); c.fill(); }
+  function line(x1, y1, x2, y2, col, w) { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.beginPath(); c.moveTo(X(x1), Y(y1)); c.lineTo(X(x2), Y(y2)); c.stroke(); }
+  poly([[150, 585], [1110, 585], [1110, 608], [150, 608]], '#1d1814');
+  poly([[200, 490], [560, 490], [560, 584], [200, 584]], '#3a2c20');
+  poly([[995, 440], [1110, 440], [1110, 585], [995, 585]], '#2b241e');
+  poly([[850, 355], [995, 355], [995, 480], [850, 480]], '#14161a');
+  poly([[850, 355], [995, 355], [995, 372], [850, 372]], '#2d3036');
+  poly([[815, 212], [848, 208], [848, 576], [815, 576]], '#14161a');
+  poly([[775, 206], [848, 206], [848, 242], [775, 242]], '#14161a');
+  if (!noBoom) {
+    line(1085, 392, 1262, 183, '#14161a', 3.4); line(1000, 382, 1262, 183, '#14161a', 1.8); line(1262, 183, 985, 352, '#6b6b6b', .9);
+  }
+  poly([[145, 494], [150, 374], [260, 358], [435, 352], [435, 494]], '#f2a912');
+  poly([[150, 374], [260, 358], [435, 352], [435, 372], [260, 376], [153, 392]], '#ffd36a');
+  poly([[208, 420], [272, 420], [272, 500], [208, 500]], '#14161a');
+  line(335, 438, 395, 438, '#c98a0e', 1); line(335, 456, 395, 456, '#c98a0e', 1);
+  poly([[435, 352], [520, 340], [552, 232], [590, 216], [775, 214], [808, 240], [808, 578], [435, 578]], '#f2a912');
+  poly([[435, 560], [808, 560], [808, 578], [435, 578]], '#d99410');
+  poly([[515, 342], [552, 246], [584, 248], [588, 352]], 'rgba(176,210,228,.9)');
+  poly([[585, 264], [768, 264], [768, 365], [585, 365]], '#6e4a2a');
+  poly([[591, 270], [640, 270], [640, 361], [591, 361]], 'rgba(160,198,220,.9)');
+  poly([[720, 282], [750, 282], [750, 345], [720, 345]], 'rgba(160,198,220,.9)');
+  line(558, 262, 562, 560, '#c98a0e', .8);
+  poly([[585, 468], [620, 428], [700, 424], [738, 462], [700, 512], [620, 514]], '#1c3a6a');
+  c.strokeStyle = '#f2c718'; c.lineWidth = .9; c.beginPath(); c.moveTo(X(585), Y(468)); c.lineTo(X(620), Y(428)); c.lineTo(X(700), Y(424)); c.lineTo(X(738), Y(462)); c.lineTo(X(700), Y(512)); c.lineTo(X(620), Y(514)); c.closePath(); c.stroke();
+  c.fillStyle = '#f2c718'; c.font = '700 5.2px ' + DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('OFF-ROAD', X(660), Y(470));
+  c.fillStyle = (Math.floor(now / 160) % 2) ? '#ff8a1a' : '#8a4a10'; c.fillRect(X(700), Y(222), 7, 3);
+  c.fillStyle = '#fff6c9'; c.beginPath(); c.arc(X(150), Y(445), 2, 0, TAU); c.fill();
+}
+function drawTow(c, w, V, T) {
+  var S = 1.5, now = performance.now(), dt = Math.min(.05, Math.max(0, (now - (w.lt || now)) / 1000)); w.lt = now;
+  var gx = w.x, AX = [-55 * S, 69 * S], g0 = groundAt(T, gx + AX[0]), g1 = groundAt(T, gx + AX[1]), yT = (g0 + g1) / 2, aT = Math.atan2(g1 - g0, AX[1] - AX[0]);
+  if (w.by == null) { w.by = yT; w.bv = 0; w.ba = aT; w.av = 0; }
+  /* the wheels follow the ground exactly, the body rides on springs and floats over the bumps */
+  var n = Math.max(1, Math.ceil(dt / .008)), h = dt / n, kk = 150, cd = 2 * Math.sqrt(kk) * .9;
+  for (var q = 0; q < n; q++) {
+    w.bv += (kk * (yT - w.by) - cd * w.bv) * h; w.by += w.bv * h;
+    w.av += (kk * 1.4 * (aT - w.ba) - cd * 1.2 * w.av) * h; w.ba += w.av * h;
+  }
+  var gy = w.by, ang = w.ba, ca = Math.cos(ang), sa = Math.sin(ang);
+  c.save(); c.translate(gx, gy); c.rotate(ang); c.scale(S, S);
+  c.save(); c.translate(0, -39); towBody(c, now, true); c.restore();
+  /* boom and cable */
+  var px = -44, py = -58, ba = .84, bl = 46 * Math.min(1, .35 + w.hook * .65 + (w.ph === 0 ? Math.min(1, w.t / 1.2) * .3 : 0));
+  var tx = px - Math.cos(ba) * bl, ty = py - Math.sin(ba) * bl;
+  c.strokeStyle = '#14161a'; c.lineWidth = 3.6; c.lineCap = 'round'; c.beginPath(); c.moveTo(px, py); c.lineTo(tx, ty); c.stroke();
+  c.restore();
+  if (w.hook > 0.01) {
+    var wtx = gx + (tx * ca - ty * sa) * S, wty = gy + (tx * sa + ty * ca) * S;
+    var cv_ = Math.cos(V.th), sv = Math.sin(V.th), hx = V.x - 12 * sv, hy = V.y + 12 * cv_;
+    var ex = wtx + (hx - wtx) * w.hook, ey = wty + (hy - wty) * w.hook;
+    c.strokeStyle = '#1b1612'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(wtx, wty); c.lineTo(ex, ey); c.stroke();
+    c.fillStyle = '#ffc43a'; c.beginPath(); c.arc(ex, ey, 4, 0, TAU); c.fill();
+  }
+  var gs = [g0, g1], rW = 25 * S;
+  for (var i = 0; i < 2; i++) {
+    var wx = gx + AX[i], wy = gs[i] - rW, lx = AX[i] / S, ly = -25;
+    var ax_ = gx + (lx * ca - ly * sa) * S, ay_ = gy + (lx * sa + ly * ca) * S; /* where the strut meets the body */
+    c.strokeStyle = '#2b241e'; c.lineWidth = 6; c.lineCap = 'round'; c.beginPath(); c.moveTo(ax_, ay_); c.lineTo(wx, wy); c.stroke();
+    c.save(); c.translate(wx, wy); c.scale(1.3 * S, 1.3 * S); drawWheel(c, 0, 0, w.x * .04 / S); c.restore();
+  }
+}
+function drawTruck(c, V, now) {
+  c.save(); c.translate(V.x, V.y); c.rotate(V.th);
+  /* body */
+  if (g.veh === 'tow') {
+    c.save(); c.translate(0, 6); towBody(c, now); c.restore();
+  } else {
+  c.fillStyle = '#d8351e';
+  c.beginPath(); c.moveTo(-74, 4); c.lineTo(-74, -20); c.lineTo(-26, -22); c.lineTo(-20, -40); c.lineTo(-12, -45); c.lineTo(14, -45); c.lineTo(26, -25); c.lineTo(60, -17); c.lineTo(76, -10); c.lineTo(76, 4); c.closePath(); c.fill();
+  c.fillStyle = '#8f2012'; c.fillRect(-74, -3, 150, 7);
+  c.fillStyle = 'rgba(255,255,255,.28)'; c.beginPath(); c.moveTo(-72, -19); c.lineTo(-26, -21); c.lineTo(-20, -39); c.lineTo(-12, -44); c.lineTo(14, -44); c.lineTo(-12, -42); c.lineTo(-22, -37); c.lineTo(-27, -19); c.closePath(); c.fill();
+  c.fillStyle = '#233a55'; c.beginPath(); c.moveTo(-18, -37); c.lineTo(-12, -42); c.lineTo(12, -42); c.lineTo(21, -27); c.lineTo(-20, -27); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.moveTo(-8, -41); c.lineTo(0, -41); c.lineTo(-8, -28); c.lineTo(-14, -28); c.closePath(); c.fill();
+  c.strokeStyle = '#f6efe2'; c.lineWidth = 4; c.beginPath(); c.moveTo(-73, -9); c.lineTo(-24, -9); c.moveTo(30, -10); c.lineTo(75, -4); c.stroke();
+  c.fillStyle = '#f6efe2'; c.beginPath(); c.arc(-2, -12, 8, 0, TAU); c.fill();
+  c.fillStyle = '#d8351e'; c.font = '700 13px ' + DISPLAY; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('7', -2, -12);
+  c.strokeStyle = '#1b1612'; c.lineWidth = 2.5; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(-22, -27); c.lineTo(-17, -50); c.lineTo(17, -50); c.lineTo(25, -27); c.moveTo(0, -50); c.lineTo(0, -29); c.stroke();
+  c.fillStyle = '#ffc43a'; c.fillRect(-10, -57, 22, 5);
+  c.fillStyle = 'rgba(255,196,58,.35)'; c.fillRect(-12, -61, 26, 4);
+  c.fillStyle = '#fff6c9'; c.fillRect(70, -10, 6, 5);
+  c.fillStyle = '#ff3b2a'; c.fillRect(-75, -16, 3, 6);
+  c.fillStyle = '#2b241e'; c.fillRect(-60, 3, 120, 6);
+  }
+  /* antenna with a flag, whipping around with acceleration */
+  var base = { x: -62, y: -21 }, tipA = -1.28 + ant.a, L = 62;
+  var mx = base.x + Math.cos(tipA - ant.a * .5) * L * .5, my = base.y + Math.sin(tipA - ant.a * .5) * L * .5;
+  var tx = mx + Math.cos(tipA + ant.a * .6) * L * .5, ty = my + Math.sin(tipA + ant.a * .6) * L * .5;
+  c.strokeStyle = '#2b241e'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(base.x, base.y); c.quadraticCurveTo(mx, my, tx, ty); c.stroke();
+  c.fillStyle = '#ff6b1a'; c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx - 15 - ant.a * 8, ty + 3); c.lineTo(tx, ty + 9); c.closePath(); c.fill();
+  /* suspension and wheels */
+  for (var i = 0; i < 2; i++) {
+    var A = WH[i], s = V.s[i], wy = A.y + s;
+    c.strokeStyle = '#6a625a'; c.lineWidth = 5; c.beginPath(); c.moveTo(A.x, A.y - 14); c.lineTo(A.x, wy); c.stroke();
+    c.strokeStyle = '#ff6b1a'; c.lineWidth = 3; c.lineJoin = 'miter'; c.beginPath();
+    var top = A.y - 10, bot = wy - 8, nz = 7;
+    c.moveTo(A.x, top);
+    for (var k = 1; k <= nz; k++) c.lineTo(A.x + (k % 2 ? 8 : -8), top + (bot - top) * k / nz);
+    c.lineTo(A.x, bot); c.stroke();
+    drawWheel(c, A.x, wy, wa[i]);
+    c.strokeStyle = '#1b1612'; c.lineWidth = 5; c.beginPath(); c.arc(A.x, 24, 26, Math.PI * 1.08, Math.PI * 1.92); c.stroke();
+  }
+  c.restore();
+}
+function drawScene(now) {
+  var c = ctx, V = g.V, T = g.T, i;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  var p = clamp(g.dist / 5000, 0, 1), pa = palAt(g.dist), P = pa.P, dsk = skyAt(p), dk = clamp(p * 1.7, 0, 1);
+  var sk = [mix(P.sky[0], dsk[0], dk), mix(P.sky[1], dsk[1], dk)];
+  var sg = c.createLinearGradient(0, 0, 0, Hc);
+  sg.addColorStop(0, rgb(sk[0])); sg.addColorStop(1, rgb(sk[1]));
+  c.fillStyle = sg; c.fillRect(0, 0, Wc, Hc);
+  var sunY = Hc * (.2 + .5 * p), sunX = Wc * .74;
+  var glow = c.createRadialGradient(sunX, sunY, 0, sunX, sunY, 150 * vs);
+  glow.addColorStop(0, 'rgba(255,240,200,.9)'); glow.addColorStop(.25, 'rgba(255,214,150,.35)'); glow.addColorStop(1, 'rgba(255,200,140,0)');
+  c.fillStyle = glow; c.fillRect(0, 0, Wc, Hc);
+  c.fillStyle = 'rgba(255,248,225,.95)'; c.beginPath(); c.arc(sunX, sunY, 34 * vs, 0, TAU); c.fill();
+  if (p > .55) { c.fillStyle = 'rgba(255,255,255,' + (p - .55) * 1.4 + ')'; for (i = 0; i < 40; i++) { var sx = (i * 977 % 1000) / 1000 * Wc, sy = (i * 389 % 600) / 1000 * Hc * .8; c.fillRect(sx, sy, 2, 2); } }
+  c.fillStyle = 'rgba(255,255,255,' + (.55 - p * .4) + ')';
+  for (i = 0; i < 5; i++) {
+    var cxk = ((i * 523 + 80 - cam.x * .05 + now * .004) % 1600 + 1600) % 1600 / 1600 * (Wc + 400 * vs) - 200 * vs, cyk = Hc * (.1 + (i * 37 % 20) / 100);
+    c.beginPath(); c.ellipse(cxk, cyk, 90 * vs, 14 * vs, 0, 0, TAU); c.ellipse(cxk + 40 * vs, cyk - 8 * vs, 55 * vs, 12 * vs, 0, 0, TAU); c.fill();
+  }
+  var camY = cam.y, horizon = Hc * .58 - (camY - 0) * vs * .12 + 40 * vs;
+  backdrop(pa.a, 1, P, horizon);
+  if (pa.b !== pa.a) backdrop(pa.b, pa.t, P, horizon);
+  if (p > .3) { c.fillStyle = 'rgba(70,30,70,' + (p - .3) * .3 + ')'; c.fillRect(0, horizon - 120 * vs, Wc, Hc); }
+
+  /* world */
+  var sc = vs * cam.z, ox = Wc * .33 - cam.x * sc, oy = Hc * .58 - cam.y * sc;
+  var sx = (Math.random() - .5) * shake, sy = (Math.random() - .5) * shake;
+  c.setTransform(sc, 0, 0, sc, ox + sx, oy + sy);
+  var x0 = cam.x - (Wc * .33) / sc - 40, x1 = cam.x + (Wc * .67) / sc + 40, i0 = Math.max(0, Math.floor((x0 - T.X0) / DX)), i1 = Math.min(T.n - 2, Math.ceil((x1 - T.X0) / DX));
+  var bot = cam.y + (Hc * .42) / sc + 200;
+  var bk = function (x) { return BIOMES[biomeIdx((x - X_START) / PXM)].key; };
+  /* scenery standing behind the road */
+  var b0, b1, b, hb, bx, bw, bh, by2, tier;
+  b0 = Math.floor(x0 / 240); b1 = Math.floor(x1 / 240);
+  for (b = b0; b <= b1; b++) {
+    var kk = bk(b * 240 + 120);
+    if (kk === 'town') {
+      hb = hsh(b + 11); bw = 150 + hb * 60; bh = 110 + hsh(b + 5) * 130; bx = b * 240 + (240 - bw) / 2;
+      by2 = Math.max(groundAt(T, bx), groundAt(T, bx + bw)) + 30;
+      var bc = [[176, 120, 96], [150, 158, 176], [196, 178, 140], [128, 142, 128], [190, 150, 150]][Math.floor(hb * 5) % 5];
+      c.fillStyle = rgb(mix(bc, dsk[1], p * .5)); c.fillRect(bx, by2 - bh, bw, bh);
+      c.fillStyle = rgb(mix(bc, [40, 36, 44], .35)); c.fillRect(bx - 6, by2 - bh - 8, bw + 12, 10);
+      c.fillStyle = p > .45 ? 'rgba(255,214,120,.85)' : 'rgba(40,60,84,.55)';
+      for (var wy = by2 - bh + 18; wy < by2 - 60; wy += 34) for (var wx = bx + 14; wx < bx + bw - 24; wx += 30) c.fillRect(wx, wy, 16, 20);
+      c.fillStyle = 'rgba(30,22,18,.8)'; c.fillRect(bx + bw / 2 - 12, by2 - 56, 24, 40);
+      if (hb > .5) { c.fillStyle = rgb(mix([200, 60, 50], bc, .2)); c.fillRect(bx + 10, by2 - 66, bw - 20, 7); }
+    } else if (kk === 'canyon') {
+      hb = hsh(b + 21);
+      if (hb < .6) {
+        bw = 90 + hb * 150; bh = 170 + hsh(b + 9) * 170; bx = b * 240 + 20; by2 = groundAt(T, bx + bw / 2) + 30;
+        c.fillStyle = rgb(mix(P.r[1], [90, 40, 36], .35)); c.beginPath(); c.moveTo(bx, by2); c.lineTo(bx + 14, by2 - bh * .6); c.lineTo(bx + 6, by2 - bh); c.lineTo(bx + bw - 6, by2 - bh); c.lineTo(bx + bw - 12, by2 - bh * .55); c.lineTo(bx + bw, by2); c.closePath(); c.fill();
+        c.fillStyle = 'rgba(255,200,150,.14)'; for (tier = 1; tier < 5; tier++) c.fillRect(bx + 8, by2 - bh * tier / 5, bw - 16, 5);
+      }
+    }
+  }
+  var st2 = 62;
+  for (b = Math.floor(x0 / st2); b <= Math.floor(x1 / st2); b++) {
+    var kf = bk(b * st2); if (kf !== 'forest' && kf !== 'mount') continue;
+    hb = hsh(b + 31); if (hb > (kf === 'forest' ? .62 : .26)) continue;
+    bx = b * st2 + hb * 30; bh = 150 + hsh(b + 2) * 120; by2 = groundAt(T, bx) + 8;
+    var pc = kf === 'forest' ? mix([40, 96, 60], dsk[1], p * .4) : mix([60, 98, 96], [200, 215, 235], .15 + p * .1);
+    c.fillStyle = '#4a3220'; c.fillRect(bx - 5, by2 - 30, 10, 30);
+    for (tier = 0; tier < 4; tier++) {
+      var ty0 = by2 - 20 - tier * bh * .22, tw = (bh * .28) * (1 - tier * .2);
+      c.fillStyle = rgb(mix(pc, [20, 50, 36], tier * .1)); c.beginPath(); c.moveTo(bx - tw, ty0); c.lineTo(bx, ty0 - bh * .34); c.lineTo(bx + tw, ty0); c.closePath(); c.fill();
+      if (kf === 'mount') { c.fillStyle = 'rgba(245,250,255,.9)'; c.beginPath(); c.moveTo(bx - tw * .55, ty0 - bh * .15); c.lineTo(bx, ty0 - bh * .34); c.lineTo(bx + tw * .55, ty0 - bh * .15); c.closePath(); c.fill(); }
+    }
+  }
+  var sand = mix(P.sand, [150, 98, 90], p * .55), sandD = mix(P.sandD, [96, 62, 70], p * .6);
+  c.beginPath();
+  c.moveTo(T.X0 + i0 * DX, bot);
+  for (i = i0; i <= i1; i++) c.lineTo(T.X0 + i * DX, T.ys[i]);
+  c.lineTo(T.X0 + i1 * DX, bot); c.closePath();
+  var tg = c.createLinearGradient(0, cam.y - 200, 0, cam.y + 420);
+  tg.addColorStop(0, rgb(sand)); tg.addColorStop(1, rgb(sandD));
+  c.fillStyle = tg; c.fill();
+  c.save(); c.clip();
+  c.strokeStyle = rgb(sandD, .55); c.lineWidth = 3;
+  for (var bb = 1; bb <= 4; bb++) {
+    c.beginPath();
+    for (i = i0; i <= i1; i += 2) { var yy = T.ys[i] + bb * 34 + Math.sin((T.X0 + i * DX) / 90 + bb) * 6; if (i === i0) c.moveTo(T.X0 + i * DX, yy); else c.lineTo(T.X0 + i * DX, yy); }
+    c.stroke();
+  }
+  c.restore();
+  c.strokeStyle = rgb(mix(sand, [255, 240, 205], .45)); c.lineWidth = 3.5; c.lineJoin = 'round';
+  c.beginPath(); for (i = i0; i <= i1; i++) { if (i === i0) c.moveTo(T.X0 + i * DX, T.ys[i]); else c.lineTo(T.X0 + i * DX, T.ys[i]); } c.stroke();
+  /* snow dusting on the mountain road */
+  var pen2 = false;
+  c.strokeStyle = 'rgba(244,248,255,.92)'; c.lineWidth = 6; c.beginPath();
+  for (i = i0; i <= i1; i++) {
+    if (bk(T.X0 + i * DX) === 'mount' && !T.rock[i]) { if (!pen2) { c.moveTo(T.X0 + i * DX, T.ys[i] + 1); pen2 = true; } else c.lineTo(T.X0 + i * DX, T.ys[i] + 1); } else pen2 = false;
+  }
+  c.stroke();
+  /* main street: asphalt with a dashed centre line */
+  var pen3 = false;
+  c.strokeStyle = '#4b4b52'; c.lineWidth = 12; c.lineJoin = 'round'; c.beginPath();
+  for (i = i0; i <= i1; i++) {
+    if (bk(T.X0 + i * DX) === 'town') { if (!pen3) { c.moveTo(T.X0 + i * DX, T.ys[i] + 6); pen3 = true; } else c.lineTo(T.X0 + i * DX, T.ys[i] + 6); } else pen3 = false;
+  }
+  c.stroke();
+  pen3 = false; c.setLineDash([30, 28]); c.strokeStyle = '#f2c744'; c.lineWidth = 2; c.beginPath();
+  for (i = i0; i <= i1; i++) {
+    if (bk(T.X0 + i * DX) === 'town') { if (!pen3) { c.moveTo(T.X0 + i * DX, T.ys[i] + 7); pen3 = true; } else c.lineTo(T.X0 + i * DX, T.ys[i] + 7); } else pen3 = false;
+  }
+  c.stroke(); c.setLineDash([]);
+  /* rocks: grey caps wherever the heightfield is a hazard */
+  c.fillStyle = rgb(mix(P.rock, [60, 52, 62], p * .6));
+  for (i = i0; i < i1; i++) {
+    if (T.rock[i] || T.rock[i + 1]) {
+      var xa = T.X0 + i * DX;
+      c.beginPath(); c.moveTo(xa, T.ys[i]); c.lineTo(xa + DX, T.ys[i + 1]); c.lineTo(xa + DX, T.ys[i + 1] + 16); c.lineTo(xa, T.ys[i] + 16); c.closePath(); c.fill();
+    }
+  }
+  c.strokeStyle = rgb(mix(P.rock, [200, 196, 200], .25)); c.lineWidth = 2.5;
+  c.beginPath(); var pen = false;
+  for (i = i0; i <= i1; i++) {
+    if (T.rock[i]) { if (!pen) { c.moveTo(T.X0 + i * DX, T.ys[i]); pen = true; } else c.lineTo(T.X0 + i * DX, T.ys[i]); } else pen = false;
+  }
+  c.stroke();
+  /* roadside: placed by a hash so it stays put */
+  for (i = i0; i < i1; i++) {
+    var hs = ((i * 2654435761) >>> 0) % 1000;
+    if (hs > 40 || T.rock[i] || Math.abs(T.ys[i + 1] - T.ys[i]) > 4) continue;
+    var gx = T.X0 + i * DX, gy = T.ys[i], k2 = 1 + (hs % 3) * .35, kb = bk(gx);
+    if (kb === 'town') {
+      if (hs < 14) {
+        c.fillStyle = '#3a3a44'; c.fillRect(gx - 2, gy - 84, 4, 84); c.fillRect(gx - 2, gy - 84, 18, 4);
+        c.fillStyle = p > .45 ? '#ffe9a0' : '#c9c2a8'; c.fillRect(gx + 10, gy - 80, 12, 5);
+      } else if (hs < 24) { c.fillStyle = '#c0392b'; c.fillRect(gx - 5, gy - 24, 10, 24); c.fillStyle = '#962b20'; c.fillRect(gx - 7, gy - 28, 14, 6); }
+    } else if (kb === 'forest') {
+      c.fillStyle = rgb(mix([52, 96, 60], [30, 40, 50], p * .6));
+      if (hs < 14) { c.beginPath(); c.moveTo(gx - 16 * k2, gy); c.lineTo(gx, gy - 54 * k2); c.lineTo(gx + 16 * k2, gy); c.closePath(); c.fill(); }
+      else { c.beginPath(); c.ellipse(gx, gy - 4, 22 * k2, 8 * k2, 0, Math.PI, TAU); c.fill(); }
+    } else if (kb === 'mount') {
+      if (hs < 14) { c.fillStyle = '#3f6a5c'; c.beginPath(); c.moveTo(gx - 14 * k2, gy); c.lineTo(gx, gy - 48 * k2); c.lineTo(gx + 14 * k2, gy); c.closePath(); c.fill(); c.fillStyle = '#f4f8ff'; c.beginPath(); c.moveTo(gx - 6 * k2, gy - 30 * k2); c.lineTo(gx, gy - 48 * k2); c.lineTo(gx + 6 * k2, gy - 30 * k2); c.closePath(); c.fill(); }
+      else { c.fillStyle = 'rgba(244,248,255,.95)'; c.beginPath(); c.ellipse(gx, gy - 2, 24 * k2, 7 * k2, 0, Math.PI, TAU); c.fill(); }
+    } else {
+      c.fillStyle = rgb(mix(kb === 'canyon' ? [150, 120, 70] : [84, 128, 72], [50, 60, 70], p * .6));
+      if (hs < 20 && kb !== 'dunes') {
+        c.fillRect(gx - 4 * k2, gy - 44 * k2, 8 * k2, 44 * k2);
+        c.fillRect(gx - 15 * k2, gy - 28 * k2, 11 * k2, 5 * k2); c.fillRect(gx - 15 * k2, gy - 38 * k2, 5 * k2, 15 * k2);
+        c.fillRect(gx + 4 * k2, gy - 20 * k2, 11 * k2, 5 * k2); c.fillRect(gx + 10 * k2, gy - 32 * k2, 5 * k2, 17 * k2);
+      } else { c.beginPath(); c.ellipse(gx, gy - 6 * k2, 18 * k2, 9 * k2, 0, Math.PI, TAU); c.fill(); }
+    }
+  }
+  for (i = 0; i < parts.length; i++) {
+    var q = parts[i];
+    c.fillStyle = q.c + Math.max(0, q.life * .55) + ')';
+    c.beginPath(); c.arc(q.x, q.y, q.s * (1.4 - q.life * .5), 0, TAU); c.fill();
+  }
+  for (i = 0; i < g.props.length; i++) { var pr = g.props[i]; if (pr.x > x0 - 60 && pr.x < x1 + 60) drawProp(c, pr); }
+  if (g.rv && !g.rv.gone) { g.rv.hook = 0; g.rv.ph = 3; g.rv.t = 0; drawTow(c, g.rv, V, T); }
+  if (g.tow) drawTow(c, g.tow, V, T);
+  drawTruck(c, V, now);
+  if (g.self) {
+    var su = Math.min(1, g.self.t / SELF_T), ext = Math.min(1, su / .2, (1 - su) / .2), fx = V.x - 62, fy = groundAt(T, fx);
+    var ex2 = V.x + (fx - V.x) * ext, ey2 = V.y + (fy - V.y) * ext;
+    c.lineCap = 'round'; c.strokeStyle = '#14161a'; c.lineWidth = 9; c.beginPath(); c.moveTo(V.x, V.y); c.lineTo(ex2, ey2); c.stroke();
+    c.strokeStyle = '#f2a912'; c.lineWidth = 5; c.beginPath(); c.moveTo(V.x, V.y); c.lineTo(ex2, ey2); c.stroke();
+    c.fillStyle = '#14161a'; c.beginPath(); c.ellipse(ex2, ey2, 11, 5, 0, 0, TAU); c.fill();
+  }
+  /* damage popups follow the truck */
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  if (hurtFlash > 0) { c.fillStyle = 'rgba(240,69,47,' + hurtFlash * .28 + ')'; c.fillRect(0, 0, Wc, Hc); }
+  if (p > .6) { c.fillStyle = 'rgba(10,6,30,' + (p - .6) * .35 + ')'; c.fillRect(0, 0, Wc, Hc); }
+
+  /* callouts */
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+  var y0 = Hc * .2 + 20 * dpr;
+  for (i = 0; i < pops.length; i++) {
+    var pp = pops[i]; if (pp.t < 0) continue;
+    var a = Math.min(1, pp.t / .12, (2.2 - pp.t) / .6), sz = (pp.big ? 64 : 48) * dpr * (1 + Math.max(0, .2 - pp.t) * 1.5), yy2 = y0 + i * 58 * dpr - pp.t * 14 * dpr;
+    c.globalAlpha = Math.max(0, a);
+    c.font = '700 ' + sz + 'px ' + DISPLAY; c.lineWidth = 7 * dpr; c.strokeStyle = 'rgba(15,10,7,.9)'; c.strokeText(pp.text, Wc / 2, yy2); c.fillStyle = pp.c; c.fillText(pp.text, Wc / 2, yy2);
+    c.font = '600 ' + 13 * dpr + 'px ' + BODYF; c.lineWidth = 4 * dpr; c.strokeText(pp.sub.toUpperCase(), Wc / 2, yy2 + sz * .55); c.fillStyle = '#fff'; c.fillText(pp.sub.toUpperCase(), Wc / 2, yy2 + sz * .55);
+  }
+  c.globalAlpha = 1;
+  if (g.trick && st === 'play') {
+    c.font = '700 ' + 34 * dpr + 'px ' + DISPLAY; c.lineWidth = 6 * dpr; c.strokeStyle = 'rgba(15,10,7,.9)';
+    c.strokeText(g.trick.toUpperCase(), Wc / 2, Hc * .44); c.fillStyle = '#fff'; c.fillText(g.trick.toUpperCase(), Wc / 2, Hc * .44);
+  }
+  if (banner) {
+    var ba = Math.min(1, banner.t / .3, (3 - banner.t) / .6);
+    c.globalAlpha = Math.max(0, ba);
+    c.font = '700 ' + 76 * dpr + 'px ' + DISPLAY; c.lineWidth = 9 * dpr; c.strokeStyle = 'rgba(15,10,7,.9)';
+    c.strokeText(banner.text.toUpperCase(), Wc / 2, Hc * .34); c.fillStyle = '#fff'; c.fillText(banner.text.toUpperCase(), Wc / 2, Hc * .34);
+    c.globalAlpha = 1;
+  }
+}
+
+/* ---------- Loop ---------- */
+function frame(now) {
+  var dt = Math.min(.05, (now - last) / 1000 || 0);
+  last = now;
+  if (paused) dt = 0;
+  var V = g.V, i;
+  g.locked = st !== 'play';
+  var input = st === 'play' ? inp() : NOIN;
+  acc += dt;
+  while (acc >= STEP) { gameStep(g, input, STEP); acc -= STEP; }
+  drain();
+  snapT += dt; if (snapT > 2) { snapT = 0; snapRun(); }
+
+  /* wheel spin, antenna, camera */
+  for (i = 0; i < 2; i++) wa[i] += V.wsp[i] * dt;
+  var axl = dt > 0 ? (V.vx - lastVx) / dt : 0; lastVx = V.vx;
+  ant.w += (-90 * ant.a - 7 * ant.w - .0022 * clamp(axl, -2500, 2500) * Math.cos(V.th) + (V.om * -.2)) * dt;
+  ant.a = clamp(ant.a + ant.w * dt, -.9, .9);
+  var spd = g.speed, h = groundAt(g.T, V.x) - V.y - 43;
+  var zt = 1 - clamp((spd - 350) / 1400, 0, .22) - clamp((h - 120) / 700, 0, .2);
+  cam.z += (zt - cam.z) * (1 - Math.exp(-2 * dt));
+  var tx = V.x + clamp(V.vx * .28, -100, 300);
+  cam.x += (tx - cam.x) * (1 - Math.exp(-7 * dt));
+  cam.y += (V.y - 20 - cam.y) * (1 - Math.exp(-3.2 * dt));
+  var sc = vs * cam.z, minY = V.y - (Hc * .78 - Hc * .58) / sc, maxY = V.y + (Hc * .58 - Hc * .3) / sc;
+  cam.y = clamp(cam.y, minY + 20, maxY - 20) ;
+
+  /* particles */
+  for (i = 0; i < 2; i++) {
+    if (V.c[i] && (Math.abs(V.wsp[i]) * WR > 180 || V.slip[i]) && Math.random() < dt * 60 * .5 && !reduce)
+      parts.push({ x: V.cp[i].x, y: V.cp[i].y, vx: -V.vx * .2 + (Math.random() - .5) * 60, vy: -30 - Math.random() * 70, life: 1, d: 1.6, s: 3 + Math.random() * 4, c: 'rgba(226,190,140,' });
+  }
+  if (g.hp < 40 && st !== 'intro' && Math.random() < dt * (g.hp < 15 ? 50 : 24)) {
+    var cs = Math.cos(V.th), sn = Math.sin(V.th);
+    parts.push({ x: V.x + 50 * cs + 10 * sn, y: V.y + 50 * sn - 10 * cs, vx: -V.vx * .1 + (Math.random() - .5) * 30, vy: -60 - Math.random() * 50, life: 1, d: .9, s: 5 + Math.random() * 4, c: g.hp < 15 ? 'rgba(255,120,40,' : 'rgba(50,44,40,' });
+  }
+  if ((g.temp > .85 || g.hot) && st !== 'intro' && Math.random() < dt * 40) {
+    var c2 = Math.cos(V.th), s2 = Math.sin(V.th);
+    parts.push({ x: V.x + 56 * c2 + 12 * s2, y: V.y + 56 * s2 - 12 * c2, vx: -V.vx * .1 + (Math.random() - .5) * 40, vy: -90 - Math.random() * 60, life: 1, d: 1.1, s: 5 + Math.random() * 5, c: 'rgba(240,240,240,' });
+  }
+  for (i = parts.length - 1; i >= 0; i--) {
+    var q = parts[i]; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 80 * dt; q.vx *= 1 - 1.5 * dt; q.life -= dt / q.d;
+    if (q.life <= 0) parts.splice(i, 1);
+  }
+  for (i = pops.length - 1; i >= 0; i--) { pops[i].t += dt; if (pops[i].t > 2.2) pops.splice(i, 1); }
+  if (banner) { banner.t += dt; if (banner.t > 3) banner = null; }
+  shake *= Math.exp(-6 * dt); hurtFlash = Math.max(0, hurtFlash - dt * 2);
+
+  if (g.tow && g.tow.ph === 0) { var bp = Math.floor(g.tow.t * 3); if (bp !== towBeep) { towBeep = bp; sfx('beep'); } } else towBeep = -1;
+  syncHud();
+  engineSound();
+  if (Wc > 10) drawScene(now);
+  requestAnimationFrame(frame);
+}
+
+resize();
+cam.x = g.V.x; cam.y = g.V.y;
+showIntro();
+requestAnimationFrame(function (t) { last = t; frame(t); });
+})();
+</script>
