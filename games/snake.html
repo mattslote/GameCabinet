@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Snake</title>
+<style>
+html,body{margin:0;height:100%;background:#0b1a0b;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;font-family:ui-monospace,Menlo,Consolas,monospace;color:#9bbc0f}
+canvas{position:fixed;inset:0}
+#ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,20,8,.8);text-align:center}
+#ov h1{margin:0;font-size:clamp(40px,12vmin,76px);letter-spacing:.18em}
+#ov p{margin:0;color:#7a9a2a;font-size:14px;max-width:360px;padding:0 16px;line-height:1.5}
+button{font:inherit;font-weight:800;letter-spacing:.12em;color:#0b1a0b;background:#9bbc0f;border:0;padding:14px 26px;border-radius:2px}
+button.s{background:#1c3a1c;color:#9bbc0f;border:1px solid #4a6a1a}button.on{background:#9bbc0f;color:#0b1a0b}
+.row{display:flex;gap:10px}
+[hidden]{display:none!important}
+</style></head><body>
+<canvas id=c></canvas>
+<div id=ov><h1 id=t>SNAKE</h1><p id=m>Swipe to steer. Eat to grow. Don't hit the walls or yourself.</p>
+<div class=row id=dif><button class=s data-d=0>SLOW</button><button class="s on" data-d=1>NORMAL</button><button class=s data-d=2>FAST</button></div>
+<button id=go>START</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
+const GW=20,GH=28;let dpr=1,cs=10,ox=0,oy=0;
+function fit(){dpr=devicePixelRatio||1;cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';cs=Math.floor(Math.min(innerWidth/GW,(innerHeight-90)/GH));ox=Math.floor((innerWidth-cs*GW)/2);oy=Math.floor((innerHeight-cs*GH)/2)+24}
+addEventListener('resize',fit);fit();
+let AC;function beep(f,d,ty='square',v=.05,sl){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.setValueAtTime(f,AC.currentTime);if(sl)o.frequency.exponentialRampToValueAtTime(sl,AC.currentTime+d);g.gain.setValueAtTime(v,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+let diff=1,st='menu',snake,dir,queue,food,score=0,hi=0,acc=0,grow=0,flash=0;
+try{hi=+localStorage.getItem('snake-hi')||0}catch(e){}
+document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{diff=+b.dataset.d;document.querySelectorAll('[data-d]').forEach(x=>x.classList.toggle('on',x===b))});
+function place(){let p;do{p={x:Math.floor(Math.random()*GW),y:Math.floor(Math.random()*GH)}}while(snake.some(s=>s.x===p.x&&s.y===p.y));food=p}
+function newGame(){snake=[{x:10,y:14},{x:9,y:14},{x:8,y:14}];dir={x:1,y:0};queue=[];score=0;grow=0;acc=0;place();st='play';ov.hidden=true}
+document.getElementById('go').onclick=()=>{newGame();beep(500,.1)};
+function turn(dx,dy){const last=queue.length?queue[queue.length-1]:dir;if(dx===-last.x&&dy===-last.y)return;if(dx===last.x&&dy===last.y)return;if(queue.length<3)queue.push({x:dx,y:dy})}
+addEventListener('keydown',e=>{const m={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0]}[e.key];if(m){turn(...m);e.preventDefault()}});
+let sx=0,sy=0,sid=null;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);sid=e.pointerId;sx=e.clientX;sy=e.clientY});
+cv.addEventListener('pointermove',e=>{if(e.pointerId!==sid)return;const dx=e.clientX-sx,dy=e.clientY-sy;if(Math.hypot(dx,dy)>22){if(Math.abs(dx)>Math.abs(dy))turn(dx>0?1:-1,0);else turn(0,dy>0?1:-1);sx=e.clientX;sy=e.clientY}});
+cv.addEventListener('pointerup',()=>sid=null);cv.addEventListener('pointercancel',()=>sid=null);
+function step(){
+ if(queue.length)dir=queue.shift();
+ const h={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+ if(h.x<0||h.y<0||h.x>=GW||h.y>=GH||snake.some((s,i)=>i<snake.length-(grow>0?0:1)&&s.x===h.x&&s.y===h.y)){over();return}
+ snake.unshift(h);
+ if(h.x===food.x&&h.y===food.y){score+=10;grow+=2;beep(660,.08,'square',.05,990);place();if(score>hi){hi=score;try{localStorage.setItem('snake-hi',hi)}catch(e){}}}
+ if(grow>0)grow--;else snake.pop();
+}
+function over(){st='over';beep(110,.5,'sawtooth',.08,40);flash=.5;document.getElementById('t').textContent='GAME OVER';document.getElementById('m').textContent='Score '+score+'  ·  Best '+hi+'  ·  Length '+snake.length;document.getElementById('go').textContent='AGAIN';setTimeout(()=>{if(st==='over')ov.hidden=false},600)}
+function update(dt){if(flash>0)flash-=dt;if(st!=='play')return;const iv=[.2,.14,.09][diff]*Math.pow(.985,Math.floor(score/10));acc+=dt;while(acc>=iv&&st==='play'){acc-=iv;step()}}
+function draw(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#0b1a0b';ctx.fillRect(0,0,innerWidth,innerHeight);
+ ctx.fillStyle='#0f240f';ctx.fillRect(ox,oy,cs*GW,cs*GH);ctx.strokeStyle='#2a4a1a';ctx.lineWidth=2;ctx.strokeRect(ox-1,oy-1,cs*GW+2,cs*GH+2);
+ ctx.font='bold 16px ui-monospace,Menlo,monospace';ctx.fillStyle='#9bbc0f';ctx.textAlign='left';ctx.fillText('SCORE '+score,ox,oy-12);ctx.textAlign='right';ctx.fillText('BEST '+hi,ox+cs*GW,oy-12);
+ if(!snake)return;
+ ctx.fillStyle='#ff5a4a';const pu=1+.12*Math.sin(performance.now()/160);const fc=cs*.5*pu;ctx.beginPath();ctx.arc(ox+(food.x+.5)*cs,oy+(food.y+.5)*cs,fc,0,6.3);ctx.fill();
+ snake.forEach((s,i)=>{ctx.fillStyle=flash>0&&Math.floor(flash*20)%2?'#fff':(i===0?'#d6ff3a':i%2?'#9bbc0f':'#86a50d');ctx.fillRect(ox+s.x*cs+1,oy+s.y*cs+1,cs-2,cs-2)});
+ const h=snake[0];ctx.fillStyle='#0b1a0b';const ex=dir.y?cs*.25:cs*.55,ey=dir.x?cs*.25:cs*.55;ctx.fillRect(ox+h.x*cs+ex-1,oy+h.y*cs+ey-1,3,3);ctx.fillRect(ox+h.x*cs+(dir.y?cs*.7:ex)-1,oy+h.y*cs+(dir.x?cs*.7:ey)-1,3,3);
+}
+let last=performance.now();function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+</script></body></html>

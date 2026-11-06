@@ -1,0 +1,73 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Asteroids</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;font-family:ui-monospace,Menlo,Consolas,monospace;color:#fff}
+canvas{position:fixed;inset:0}
+#ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.72);text-align:center}
+#ov h1{margin:0;font-size:clamp(36px,10vmin,72px);letter-spacing:.2em}
+#ov p{margin:0;color:#aaa;font-size:14px;max-width:420px;padding:0 16px;line-height:1.5}
+button.go{font:inherit;font-weight:800;letter-spacing:.12em;color:#000;background:#fff;border:0;padding:14px 26px;border-radius:2px}
+.pad{position:fixed;bottom:max(18px,env(safe-area-inset-bottom));width:84px;height:84px;border-radius:50%;border:2px solid rgba(255,255,255,.45);display:flex;align-items:center;justify-content:center;font-size:26px;color:rgba(255,255,255,.7);background:rgba(255,255,255,.06)}
+.pad.on{background:rgba(255,255,255,.28)}
+#L{left:max(18px,env(safe-area-inset-left))}#Rr{left:calc(max(18px,env(safe-area-inset-left)) + 100px)}
+#F{right:max(18px,env(safe-area-inset-right))}#T{right:calc(max(18px,env(safe-area-inset-right)) + 100px)}
+[hidden]{display:none!important}
+</style></head><body>
+<canvas id=c></canvas>
+<div class=pad id=L>⟲</div><div class=pad id=Rr>⟳</div><div class=pad id=T>▲</div><div class=pad id=F>●</div>
+<div id=ov><h1 id=t>ASTEROIDS</h1><p id=m>Rotate, thrust and fire. Shoot the rocks, dodge the pieces. Arrow keys and space also work.</p><button class=go id=go>START</button></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
+let W=800,H=450,dpr=1;
+function fit(){dpr=devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px'}
+addEventListener('resize',fit);fit();
+let AC;function beep(f,d,ty='square',v=.06,sl){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.setValueAtTime(f,AC.currentTime);if(sl)o.frequency.exponentialRampToValueAtTime(sl,AC.currentTime+d);g.gain.setValueAtTime(v,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+const keys={};addEventListener('keydown',e=>{keys[e.key]=1;if(['ArrowLeft','ArrowRight','ArrowUp',' '].includes(e.key))e.preventDefault()});addEventListener('keyup',e=>keys[e.key]=0);
+const btn={L:0,R:0,T:0,F:0};
+[['L','L'],['Rr','R'],['T','T'],['F','F']].forEach(([id,k])=>{const el=document.getElementById(id);const on=e=>{e.preventDefault();btn[k]=1;el.classList.add('on')},off=e=>{btn[k]=0;el.classList.remove('on')};el.addEventListener('pointerdown',on);el.addEventListener('pointerup',off);el.addEventListener('pointercancel',off);el.addEventListener('pointerleave',off)});
+let st='menu',score=0,hi=0,lives=3,level=1,ship,rocks=[],shots=[],parts=[],fireT=0,inv=0,respawn=0,msgT=0,extra=10000;
+try{hi=+localStorage.getItem('ast-hi')||0}catch(e){}
+const R_=[34,18,9],PT=[20,50,100];
+function rock(x,y,s){const n=10,a=[];for(let i=0;i<n;i++)a.push(.72+Math.random()*.5);const sp=(30+Math.random()*50)*(1+(2-s)*.5)+level*4,d=Math.random()*6.28;return{x,y,s,vx:Math.cos(d)*sp,vy:Math.sin(d)*sp,r:0,vr:(Math.random()-.5)*1.4,a}}
+function wave(){rocks=[];const n=Math.min(10,3+level);for(let i=0;i<n;i++){let x,y;do{x=Math.random()*W;y=Math.random()*H}while(Math.hypot(x-W/2,y-H/2)<160);rocks.push(rock(x,y,0))}}
+function newShip(){ship={x:W/2,y:H/2,vx:0,vy:0,a:-Math.PI/2};inv=2.5}
+function newGame(){score=0;lives=3;level=1;extra=10000;shots=[];parts=[];wave();newShip();st='play';ov.hidden=true}
+document.getElementById('go').onclick=()=>{newGame();beep(500,.1)};
+const wrap=o=>{o.x=(o.x+W)%W;o.y=(o.y+H)%H};
+function boom(x,y,n,c='#fff'){for(let i=0;i<n;i++){const a=Math.random()*6.28,s=20+Math.random()*120;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,l:.4+Math.random()*.6})}}
+function update(dt){
+ if(st!=='play')return;
+ if(ship){const rl=keys.ArrowLeft||btn.L,rr=keys.ArrowRight||btn.R,th=keys.ArrowUp||btn.T,fr=keys[' ']||btn.F;
+  ship.a+=((rr?1:0)-(rl?1:0))*4.2*dt;
+  if(th){ship.vx+=Math.cos(ship.a)*300*dt;ship.vy+=Math.sin(ship.a)*300*dt;if(Math.random()<.5)parts.push({x:ship.x-Math.cos(ship.a)*10,y:ship.y-Math.sin(ship.a)*10,vx:-Math.cos(ship.a)*80+(Math.random()-.5)*40,vy:-Math.sin(ship.a)*80+(Math.random()-.5)*40,l:.25})}
+  const f=Math.pow(.6,dt);ship.vx*=f;ship.vy*=f;ship.x+=ship.vx*dt;ship.y+=ship.vy*dt;wrap(ship);
+  fireT-=dt;if(fr&&fireT<=0&&shots.length<5){shots.push({x:ship.x+Math.cos(ship.a)*14,y:ship.y+Math.sin(ship.a)*14,vx:ship.vx+Math.cos(ship.a)*520,vy:ship.vy+Math.sin(ship.a)*520,l:1.1});fireT=.18;beep(800,.1,'square',.04,200)}
+  if(inv>0)inv-=dt;
+ }else{respawn-=dt;if(respawn<=0){if(lives<=0){over();return}const clear=!rocks.some(r=>Math.hypot(r.x-W/2,r.y-H/2)<R_[r.s]+80);if(clear)newShip()}}
+ for(const s of shots){s.x+=s.vx*dt;s.y+=s.vy*dt;s.l-=dt;wrap(s)}shots=shots.filter(s=>s.l>0);
+ for(const r of rocks){r.x+=r.vx*dt;r.y+=r.vy*dt;r.r+=r.vr*dt;wrap(r)}
+ for(const s of shots){for(const r of rocks){if(Math.hypot(s.x-r.x,s.y-r.y)<R_[r.s]){s.l=0;r.dead=1;score+=PT[r.s];boom(r.x,r.y,8+(2-r.s)*-3+10);beep(120-r.s*20,.25,'sawtooth',.07,40);if(r.s<2){rocks.push(rock(r.x,r.y,r.s+1),rock(r.x,r.y,r.s+1))}break}}}
+ rocks=rocks.filter(r=>!r.dead);
+ if(ship&&inv<=0)for(const r of rocks)if(Math.hypot(ship.x-r.x,ship.y-r.y)<R_[r.s]*.85+8){boom(ship.x,ship.y,26);beep(90,.7,'sawtooth',.1,30);ship=null;lives--;respawn=1.6;break}
+ for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.l-=dt}parts=parts.filter(p=>p.l>0);
+ if(score>=extra){lives++;extra+=10000;beep(900,.3)}
+ if(score>hi){hi=score;try{localStorage.setItem('ast-hi',hi)}catch(e){}}
+ if(!rocks.length){level++;wave();msgT=1.5;beep(500,.25,'square',.06,900)}
+ if(msgT>0)msgT-=dt;
+}
+function over(){st='over';document.getElementById('t').textContent='GAME OVER';document.getElementById('m').textContent='Score '+score+'  ·  Best '+hi+'  ·  Wave '+level;document.getElementById('go').textContent='AGAIN';ov.hidden=false}
+function shipPath(){ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-10,-9);ctx.lineTo(-6,0);ctx.lineTo(-10,9);ctx.closePath()}
+function draw(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle='#fff';ctx.lineWidth=1.6;ctx.lineJoin='round';
+ for(const r of rocks){ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.r);ctx.beginPath();const n=r.a.length;for(let i=0;i<n;i++){const an=i/n*6.283,rr=R_[r.s]*r.a[i];i?ctx.lineTo(Math.cos(an)*rr,Math.sin(an)*rr):ctx.moveTo(Math.cos(an)*rr,Math.sin(an)*rr)}ctx.closePath();ctx.stroke();ctx.restore()}
+ if(ship&&(inv<=0||Math.floor(inv*10)%2===0)){ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);shipPath();ctx.stroke();ctx.restore()}
+ ctx.fillStyle='#fff';for(const s of shots)ctx.fillRect(s.x-1.5,s.y-1.5,3,3);
+ for(const p of parts){ctx.globalAlpha=Math.max(0,Math.min(1,p.l*2));ctx.fillRect(p.x,p.y,2,2)}ctx.globalAlpha=1;
+ ctx.font='bold 20px ui-monospace,Menlo,monospace';ctx.textAlign='left';ctx.fillText(String(score).padStart(5,'0'),16+0,34);
+ ctx.textAlign='right';ctx.fillStyle='#888';ctx.font='14px ui-monospace,monospace';ctx.fillText('BEST '+hi,W-16,30);ctx.fillStyle='#fff';
+ for(let i=0;i<lives-(ship?1:0);i++){ctx.save();ctx.translate(26+i*22,56);ctx.rotate(-Math.PI/2);ctx.scale(.8,.8);shipPath();ctx.stroke();ctx.restore()}
+ if(msgT>0){ctx.textAlign='center';ctx.font='bold 24px ui-monospace,monospace';ctx.fillText('WAVE '+level,W/2,H/2-60)}
+}
+let last=performance.now();function loop(t){const dt=Math.min(.033,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+</script></body></html>
