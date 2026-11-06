@@ -1,0 +1,70 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Pong</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;font-family:ui-monospace,Menlo,Consolas,monospace;color:#fff}
+canvas{position:fixed;inset:0}
+#ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.72);text-align:center}
+#ov h1{margin:0;font-size:clamp(40px,12vmin,96px);letter-spacing:.2em;font-weight:900}
+#ov p{margin:0;color:#aaa;font-size:14px;max-width:420px;padding:0 16px}
+#ov .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+button{font:inherit;font-weight:800;letter-spacing:.12em;color:#000;background:#fff;border:0;padding:14px 22px;border-radius:2px}
+button.s{background:#222;color:#fff;border:1px solid #666}
+button.on{background:#fff;color:#000}
+[hidden]{display:none!important}
+</style></head><body>
+<canvas id=c></canvas>
+<div id=ov><h1 id=t>PONG</h1><p id=m>1 player: drag anywhere to move your paddle. 2 players: each player drags on their own half of the screen. First to 7 wins.</p>
+<div class=row id=dif><button class="s" data-d=0>EASY</button><button class="s on" data-d=1>MEDIUM</button><button class="s" data-d=2>HARD</button></div>
+<div class=row><button id=b1>1 PLAYER<br><small style="font-weight:400;letter-spacing:.05em">vs computer</small></button><button id=b2>2 PLAYERS<br><small style="font-weight:400;letter-spacing:.05em">local, same screen</small></button></div></div>
+<script>
+const W=800,H=450,cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
+let sc=1,ox=0,oy=0,dpr=1;
+function fit(){dpr=devicePixelRatio||1;cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';sc=Math.min(innerWidth/W,innerHeight/H);ox=(innerWidth-W*sc)/2;oy=(innerHeight-H*sc)/2}
+addEventListener('resize',fit);fit();
+let AC;function beep(f,d,ty='square',v=.08){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(v,AC.currentTime);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+const PW=12,PH=80,WIN=7;
+let mode=1,diff=1,state='menu',sL=0,sR=0,L,R,ball,serveT=0,keys={},touchY={L:null,R:null},best=0;
+try{best=+localStorage.getItem('pong-wins')||0}catch(e){}
+function resetBall(dir){ball={x:W/2,y:H/2,vx:0,vy:0,sp:340,dir};serveT=.9}
+function launch(){const a=(Math.random()-.5)*.7;ball.vx=Math.cos(a)*ball.sp*ball.dir;ball.vy=Math.sin(a)*ball.sp}
+function start(m){mode=m;sL=sR=0;L={y:H/2};R={y:H/2};state='play';ov.hidden=true;resetBall(Math.random()<.5?1:-1);beep(660,.1)}
+document.getElementById('b1').onclick=()=>start(1);document.getElementById('b2').onclick=()=>start(2);
+document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{diff=+b.dataset.d;document.querySelectorAll('[data-d]').forEach(x=>x.classList.toggle('on',x===b))});
+addEventListener('keydown',e=>{keys[e.key]=1;if(['ArrowUp','ArrowDown',' '].includes(e.key))e.preventDefault()});addEventListener('keyup',e=>keys[e.key]=0);
+const ptr={};
+function pt(e){const x=(e.clientX-ox)/sc,y=(e.clientY-oy)/sc;ptr[e.pointerId]={x,y};apply()}
+function apply(){touchY.L=touchY.R=null;for(const k in ptr){const p=ptr[k];if(mode===1||p.x<W/2)touchY.L=p.y;else touchY.R=p.y;if(mode===2&&p.x>=W/2){touchY.R=p.y}}}
+cv.addEventListener('pointerdown',e=>{try{cv.setPointerCapture(e.pointerId)}catch(_){}pt(e)});cv.addEventListener('pointermove',e=>{if(ptr[e.pointerId])pt(e)});
+const up=e=>{delete ptr[e.pointerId];apply()};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+function movePaddle(p,target,dt,max){if(target==null)return;const d=target-p.y;p.y+=Math.max(-max*dt,Math.min(max*dt,d))}
+function clampP(p){p.y=Math.max(PH/2,Math.min(H-PH/2,p.y))}
+function update(dt){
+ if(state!=='play')return;
+ // left paddle: touch, keys
+ let tl=touchY.L;if(keys.w||keys.W)L.y-=520*dt;if(keys.s||keys.S)L.y+=520*dt;if(mode===1){if(keys.ArrowUp)L.y-=520*dt;if(keys.ArrowDown)L.y+=520*dt}
+ movePaddle(L,tl,dt,1400);
+ if(mode===2){if(keys.ArrowUp)R.y-=520*dt;if(keys.ArrowDown)R.y+=520*dt;movePaddle(R,touchY.R,dt,1400)}
+ else{const spd=[200,290,400][diff],err=[60,28,8][diff];let t=H/2;if(ball.vx>0){t=ball.y+Math.sin(performance.now()/380)*err}movePaddle(R,t,dt,spd)}
+ clampP(L);clampP(R);
+ if(serveT>0){serveT-=dt;if(serveT<=0)launch();return}
+ ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
+ if(ball.y<6){ball.y=6;ball.vy=Math.abs(ball.vy);beep(300,.05)}if(ball.y>H-6){ball.y=H-6;ball.vy=-Math.abs(ball.vy);beep(300,.05)}
+ const hit=(p,x,dir)=>{if(Math.abs(ball.y-p.y)<PH/2+6&&ball.vx*dir>0&&Math.abs(ball.x-x)<PW/2+6){const o=(ball.y-p.y)/(PH/2);ball.sp=Math.min(820,ball.sp+26);const a=o*1.0;ball.vx=Math.abs(Math.cos(a)*ball.sp)*(x<W/2?1:-1);ball.vy=Math.sin(a)*ball.sp;beep(x<W/2?480:420,.06);return true}return false};
+ hit(L,30,-1);hit(R,W-30,1);
+ if(ball.x<-10){sR++;score(1)}else if(ball.x>W+10){sL++;score(-1)}
+}
+function score(dir){beep(160,.35,'sawtooth');if(sL>=WIN||sR>=WIN){state='over';const win=sL>sR;if(win&&mode===1){best++;try{localStorage.setItem('pong-wins',best)}catch(e){}}
+ document.getElementById('t').textContent=mode===1?(win?'YOU WIN':'YOU LOSE'):(win?'LEFT WINS':'RIGHT WINS');document.getElementById('m').textContent=sL+' – '+sR+(mode===1?'  ·  Wins vs computer: '+best:'');document.getElementById('dif').hidden=mode!==1;ov.hidden=false;return}
+ resetBall(dir)}
+function draw(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#000';ctx.fillRect(0,0,cv.width,cv.height);
+ ctx.setTransform(dpr*sc,0,0,dpr*sc,dpr*ox,dpr*oy);
+ ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.strokeRect(1,1,W-2,H-2);
+ ctx.fillStyle='#fff';for(let y=8;y<H;y+=28)ctx.fillRect(W/2-2,y,4,16);
+ ctx.font='bold 64px ui-monospace,Menlo,Consolas,monospace';ctx.textAlign='center';ctx.fillText(sL,W/2-90,80);ctx.fillText(sR,W/2+90,80);
+ if(L){ctx.fillRect(30-PW/2,L.y-PH/2,PW,PH);ctx.fillRect(W-30-PW/2,R.y-PH/2,PW,PH)}
+ if(ball&&state==='play'&&(serveT<=0||Math.floor(serveT*8)%2===0))ctx.fillRect(ball.x-6,ball.y-6,12,12);
+ if(state==='play'){ctx.fillStyle='#555';ctx.font='12px ui-monospace,monospace';ctx.fillText(mode===1?'drag to move':'player 1: drag here',W/4,H-14);if(mode===2)ctx.fillText('player 2: drag here',W*3/4,H-14)}
+}
+let last=performance.now();function loop(t){const dt=Math.min(.033,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+</script></body></html>
