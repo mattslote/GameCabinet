@@ -231,7 +231,7 @@ let koT=0,state='title',time=0,left=DAY,camY=0,hurtT=0,shake=0,best=0,flash=0,hi
 let m=null,parts=[],texts=[];
 const ptrs=new Map();let lastHoriz=true,lastDir=null,lastDirT=-9;
 try{best=+localStorage.getItem('prospector_best')||0;}catch(e){}
-function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:0,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
+function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
 function resetGame(seed,go){
   gen(seed);m=newMiner();parts=[];texts=[];ptrs.clear();left=DAY;hurtT=0;shake=0;flash=0;hintT=0;lastDir=null;
   camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
@@ -241,7 +241,7 @@ function resetGame(seed,go){
     camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
     state=Date.now()<go.startAt?'count':'play';
   }else state='play';
-  shopSeen=false;hint('Drag or use the pad. Gold is heavy: you can carry 6.',4.5);
+  shopSeen=false;hint('Gold hides in the dirt until a lamp lights it up. You start with one lamp. Black specks hint at ore.',6);
 }
 function hint(t,s){hintTxt=t;hintT=s||1.6;}
 function addText(x,y,txt,color,size){texts.push({x,y,txt,color,size:size||16,life:1.3});}
@@ -437,7 +437,7 @@ function act(id){
   if(id==='ladder')return doLadder();
   if(id==='rail'){if(m.rails<=0&&!railMode){hint('No rails. Buy some at the shack.');return;}railMode=!railMode;sfx.click();if(railMode)layRail();hint(railMode?'Laying rail as you move.':'Rail laying off.');return;}
   if(id==='cart')return doCart();
-  if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();hint('Lamp lit. Its glow reveals buried gems nearby, and you wake here if knocked out.',4);bell(1400,.05);hint('Lamp hung.');return;}
+  if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();hint('Lamp lit. Its glow reveals gold and gems nearby, and you wake here if knocked out.',4);bell(1400,.05);hint('Lamp hung.');return;}
   if(id==='send'){const c=carts.filter(c=>c.mode==='idle'&&c.team===m.team&&c.g+c.py>0).sort((a,b)=>Math.abs(a.x-m.cx)+Math.abs(a.y-m.cy)-Math.abs(b.x-m.cx)-Math.abs(b.y-m.cy))[0];if(c)trySend(c,false);return;}
   if(id==='dump'){addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-8,'Dumped '+m.py+' fool’s','#ff9a6c',14);m.py=0;sfx.thud();return;}
   if(id==='shop')return openShop();
@@ -648,13 +648,11 @@ function bank(){
   if(rest)m.stock=10;
 }
 function updateSeen(){
-  for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=3.7){const t=grid[i];if(t>=3&&t<=6)seen[i]=2;}if(d<=5&&grid[i]===8)seen[i]=2;}
+  for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=5){const t=grid[i];if(t>=3&&t<=6||t===8)seen[i]=2;}}
   const R=7;
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
     const x=m.cx+dx,y=m.cy+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);
     if(d<=4.6&&seen[i]<1)seen[i]=1;
-    if(d<=3.7){const t=grid[i];if((t>=3&&t<=6))seen[i]=2;}
-    if(d<=1.5&&grid[i]===8)seen[i]=2;
   }
 }
 function update(dt){
