@@ -717,7 +717,7 @@ function updateSeen(){
   const R=7;
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
     const x=m.cx+dx,y=m.cy+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);
-    if(d<=4.6&&seen[i]<1)seen[i]=1;
+    if(d<=3.4&&seen[i]<1)seen[i]=1;
   }
 }
 function update(dt){
@@ -816,14 +816,14 @@ function drawWorld(c){
     c.fillStyle='rgba(255,255,255,.8)';[[120,-cy+40,20],[170,-cy+34,14],[520,-cy+56,18],[560,-cy+50,13],[760,-cy+30,16]].forEach(([x,y,r])=>{c.beginPath();c.arc(x,y,r,0,7);c.fill();});
     c.fillStyle='#8fae86';c.beginPath();c.moveTo(0,skyH);c.lineTo(0,skyH-26);c.quadraticCurveTo(220,skyH-48,420,skyH-20);c.quadraticCurveTo(680,skyH-50,W,skyH-18);c.lineTo(W,skyH);c.fill();}
   const y0=Math.max(SURF,Math.floor(cy/CS)),y1=Math.min(ROWS-1,Math.floor((cy+H)/CS));
-  const R=6.6+.25*Math.sin(time*5.3)+.15*Math.sin(time*11.7);
+  const R=3.8+.15*Math.sin(time*5.3)+.1*Math.sin(time*11.7);
   const mcx=m.rx+.5,mcy=m.ry+.5;
   for(let y=y0;y<=y1;y++){
     for(let x=0;x<COLS;x++){
       const i=idx(x,y),d=Math.hypot(x+.5-mcx,y+.5-mcy);
       let b=d<R?Math.pow(1-d/R,.75):0;
       for(const l of lamps){const dl=Math.hypot(x-l.x,y-l.y);if(dl<8.5){const bl=Math.pow(1-dl/8.5,.75)*.95;if(bl>b)b=bl;}}
-      if(seen[i]&&b<.3)b=.3;
+      if(seen[i]&&b<.14)b=.14;
       if(b<.04)continue;
       const lv=Math.min(12,Math.round(b*12)),t=grid[i],sh=hs(x,y)%3;
       const base=(t>=3&&t<=6||t===8)?1:t;
