@@ -68,7 +68,7 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
 (()=>{
 'use strict';
 let W=900,H=450;
-const CS=16,COLS=56,ROWS=100,SURF=8,OX=2;
+const CS=16,COLS=80,ROWS=160,SURF=8,OX=2;
 const BTN={x:0,y:0,r:36},PAD={x:0,y:0,r:92},DPAD={x:0,y:0,r:74};
 let camX=0,camXr=0;
 const DAY=360, HEART=25, UV=15, CAP=6, CARTCAP=30;
@@ -157,8 +157,8 @@ const sfx={
 
 /* ================= WORLD ================= */
 const grid=new Uint8Array(COLS*ROWS),lad=new Uint8Array(COLS*ROWS),seen=new Uint8Array(COLS*ROWS),clue=new Uint8Array(COLS*ROWS);
-const rail=new Uint8Array(COLS*ROWS),lampA=new Uint8Array(COLS*ROWS),gemC=new Uint8Array(COLS*ROWS),loot=new Uint8Array(COLS*ROWS),lootPy=new Uint8Array(COLS*ROWS);
-let carts=[],lamps=[],railMode=false,shopSeen=false;
+const rail=new Uint8Array(COLS*ROWS),lampA=new Uint8Array(COLS*ROWS),elev=new Uint8Array(COLS*ROWS),gemC=new Uint8Array(COLS*ROWS),loot=new Uint8Array(COLS*ROWS),lootPy=new Uint8Array(COLS*ROWS);
+let carts=[],lamps=[],railMode=false,elevMode=false,shopSeen=false;
 const inb=(x,y)=>x>=0&&x<COLS&&y>=0&&y<ROWS;
 const solid=(x,y)=>{if(x<0||x>=COLS||y<0||y>=ROWS)return true;return y>=SURF&&grid[idx(x,y)]!==0;};
 function carve(x,y){x=Math.round(x);y=Math.round(y);if(inb(x,y)&&y>=SURF+1&&y<ROWS-3)grid[idx(x,y)]=0;}
@@ -187,9 +187,9 @@ function walker(x,y,steps){
   }
 }
 function genBody(){
-  grid.fill(0);lad.fill(0);seen.fill(0);clue.fill(0);rail.fill(0);lampA.fill(0);gemC.fill(0);loot.fill(0);lootPy.fill(0);carts=[];lamps=[];railMode=false;
+  grid.fill(0);lad.fill(0);seen.fill(0);clue.fill(0);rail.fill(0);lampA.fill(0);elev.fill(0);gemC.fill(0);loot.fill(0);lootPy.fill(0);carts=[];lamps=[];railMode=false;elevMode=false;
   for(let y=SURF;y<ROWS;y++)for(let x=0;x<COLS;x++)grid[idx(x,y)]=1;
-  for(let k=0;k<80;k++){const y=rand(SURF+4,ROWS-2);blob(rand(0,COLS),y,rand(1.5,3.6)*(1+(y-SURF)/ROWS*.5),2,.92,false);}
+  for(let k=0;k<185;k++){const y=rand(SURF+4,ROWS-2);blob(rand(0,COLS),y,rand(1.5,3.6)*(1+(y-SURF)/ROWS*.5),2,.92,false);}
   for(let y=ROWS-3;y<ROWS;y++)for(let x=0;x<COLS;x++)grid[idx(x,y)]=7;
   const pockets=(n,type,r0,r1,nugP)=>{
     for(let k=0;k<n;k++){
@@ -198,16 +198,16 @@ function genBody(){
       if(nugP&&Math.random()<nugP){const nx=Math.round(x),ny=Math.round(y);if(grid[idx(nx,ny)]!==0)grid[idx(nx,ny)]=5;}
     }
   };
-  pockets(46,3,1,1.9,.12); pockets(30,4,1,1.8,0);
-  for(let k=0;k<10;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+12,ROWS-6));if(grid[idx(x,y)]===2||grid[idx(x,y)]===1)grid[idx(x,y)]=5;}
-  for(let k=0;k<18;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+3,ROWS-5));if(grid[idx(x,y)]===1)grid[idx(x,y)]=6;}
+  pockets(110,3,1,1.9,.12); pockets(72,4,1,1.8,0);
+  for(let k=0;k<24;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+12,ROWS-6));if(grid[idx(x,y)]===2||grid[idx(x,y)]===1)grid[idx(x,y)]=5;}
+  for(let k=0;k<42;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+3,ROWS-5));if(grid[idx(x,y)]===1)grid[idx(x,y)]=6;}
   // buried gems: rare, hidden in plain dirt, only a lamp's glow shows them
-  for(let k=0,n=0;k<400&&n<16;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+10,ROWS-5));const g=grid[idx(x,y)];if(g===1||g===2){grid[idx(x,y)]=8;gemC[idx(x,y)]=1+Math.floor(rand(0,3));n++;}}
+  for(let k=0,n=0;k<900&&n<36;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+10,ROWS-5));const g=grid[idx(x,y)];if(g===1||g===2){grid[idx(x,y)]=8;gemC[idx(x,y)]=1+Math.floor(rand(0,3));n++;}}
   // old mine: entrance shaft with a ladder, then wandering tunnels, plus caverns
   for(let y=SURF;y<=SURF+13;y++){grid[idx(12,y)]=0;lad[idx(12,y)]=1;}
-  walker(12,SURF+13,90);
-  for(let k=0;k<9;k++)walker(rand(4,COLS-4),rand(SURF+9,ROWS-9),Math.floor(rand(80,170)));
-  for(let k=0;k<6;k++){
+  walker(12,SURF+13,140);
+  for(let k=0;k<21;k++)walker(rand(4,COLS-4),rand(SURF+9,ROWS-9),Math.floor(rand(80,170)));
+  for(let k=0;k<14;k++){
     const cx=rand(6,COLS-6),cy=rand(SURF+14,ROWS-10),a=rand(3,6),b=rand(2,3.4);
     for(let y=Math.floor(cy-b);y<=cy+b;y++)for(let x=Math.floor(cx-a);x<=cx+a;x++){
       if(((x-cx)/a)**2+((y-cy)/b)**2<=1)carve(x,y);
@@ -231,7 +231,7 @@ let koT=0,state='title',time=0,left=DAY,camY=0,hurtT=0,shake=0,best=0,flash=0,hi
 let m=null,parts=[],texts=[];
 const ptrs=new Map();let lastHoriz=true,lastDir=null,lastDirT=-9;
 try{best=+localStorage.getItem('prospector_best')||0;}catch(e){}
-function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,ride:null,rideT:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
+function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,elev:0,ride:null,rideT:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
 function resetGame(seed,go){
   gen(seed);m=newMiner();parts=[];texts=[];ptrs.clear();left=DAY;hurtT=0;shake=0;flash=0;hintT=0;lastDir=null;
   camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
@@ -353,6 +353,7 @@ function applyOp(op){
   switch(op.k){
     case 'c':grid[op.i]=op.v;break;
     case 'l':lad[op.i]=1;break;
+    case 'e':lad[op.i]=1;elev[op.i]=1;break;
     case 'r':rail[op.i]=1;break;
     case 'm':if(!lampA[op.i]){lampA[op.i]=1;lamps.push({x:op.i%COLS,y:Math.floor(op.i/COLS)});}break;
     case 'o':loot[op.i]=op.g;lootPy[op.i]=op.p;break;
@@ -448,18 +449,22 @@ function btnList(){
   const L=[{id:'ladder',x:BTN.x,y:BTN.y,r:BTN.r,l:'LADDER ×'+m.stock}];
   const ids=[];
   if(m.rails>0||railMode)ids.push(['rail','RAIL ×'+m.rails]);
+  if(m.elev>0||elevMode)ids.push(['elev','ELEV ×'+m.elev]);
+  if(elevUp())ids.push(['bank','BANK']);
   if(m.carts>0||cartHere())ids.push(['cart',cartHere()&&cartHere().g+cartHere().py===0?'TAKE':'CART ×'+m.carts]);
   if(m.lamps>0)ids.push(['lamp','LAMP ×'+m.lamps]);
   if(m.ride||cartAny())ids.push(['ride',m.ride?'GET OFF':'RIDE']);
   if(loaded())ids.push(['send','SEND']);
   if(m.py>0)ids.push(['dump','DROP']);
-  if(atShack())ids.push(['shop','SHOP']);
+  if(atShack()||elevUp())ids.push(['shop','SHOP']);
   ids.forEach((q,i)=>L.push({id:q[0],l:q[1],x:W-52,y:H-206-i*54,r:24}));
   return L;
 }
 function act(id){
   if(id==='ladder')return doLadder();
   if(id==='rail'){if(m.rails<=0&&!railMode){hint('No rails. Buy some at the shack.');return;}railMode=!railMode;sfx.click();if(railMode)layRail();hint(railMode?'Laying rail as you move.':'Rail laying off.');return;}
+  if(id==='elev'){if(m.elev<=0&&!elevMode){hint('No elevator. Buy some at the shack.');return;}elevMode=!elevMode;sfx.click();if(elevMode)layElev();hint(elevMode?'Building elevator as you move up and down.':'Elevator building off.');return;}
+  if(id==='bank'){bank();return;}
   if(id==='cart')return doCart();
   if(id==='ride')return doRide();
   if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();hint('Lamp lit. Its glow reveals gold and gems nearby, and you wake here if knocked out.',4);bell(1400,.05);hint('Lamp hung.');return;}
@@ -555,6 +560,7 @@ function openShop(){
 }
 const ITEMS=[
   {k:'carts',n:'Rail cart',d:'Holds 30 gold. Sits on rails. Auto-sends when full.',price:100,q:1},
+  {k:'elev',n:'Elevator ×10',d:'A fast vertical lift. Toggle ELEV and move up or down to build it. Connect it to the surface and you can bank and shop from any elevator cell.',price:90,q:10},
   {k:'rails',n:'Rails ×10',d:'Toggle RAIL and walk to lay track. Run it up to the surface so carts can haul.',price:30,q:10},
   {k:'lamps',n:'Lamps ×2',d:'Hang a lamp to light and map a wide area for good.',price:50,q:2}
 ];
@@ -587,7 +593,10 @@ function doLadder(){
   if(n){sfx.ladder();addText((OX-camXr)+x*CS+8,(m.cy)*CS-camY-10,'Ladder x'+n,'#e8c98a',14);}
   else{hint('Nothing to build there.');sfx.nope();}
 }
-const place=(x,y)=>{if(m.stock>0&&!lad[idx(x,y)]&&!solid(x,y)){lad[idx(x,y)]=1;sendOp({k:'l',i:idx(x,y)});m.stock--;sfx.ladder();return true;}return false;};
+function setElev(x,y){const i=idx(x,y);elev[i]=1;lad[i]=1;m.elev--;sendOp({k:'e',i});sfx.ladder();if(m.elev<=0){elevMode=false;hint('Out of elevator.');}}
+function layElev(){const i=idx(m.cx,m.cy);if(m.falling||elev[i]||solid(m.cx,m.cy))return;if(m.elev<=0){elevMode=false;return;}setElev(m.cx,m.cy);}
+function elevUp(){if(m.falling||!elev[idx(m.cx,m.cy)])return false;let y=m.cy;while(y>SURF-1&&elev[idx(m.cx,y-1)])y--;return y<=SURF;}
+const place=(x,y)=>{if(elevMode&&m.elev>0&&!elev[idx(x,y)]&&!solid(x,y)){setElev(x,y);return true;}if(m.stock>0&&!lad[idx(x,y)]&&!solid(x,y)){lad[idx(x,y)]=1;sendOp({k:'l',i:idx(x,y)});m.stock--;sfx.ladder();return true;}return false;};
 const hasLad=()=>lad[idx(m.cx,m.cy)]===1;
 const supported=()=>m.ride||m.cling||hasLad()||solid(m.cx,m.cy+1)||m.cy===SURF-1;
 const chimney=()=>solid(m.cx-1,m.cy)||solid(m.cx+1,m.cy);
@@ -664,7 +673,7 @@ function actMove(dt){
       const nl=lad[idx(tx,ty)]===1;
       if(!hold&&!tl)return;
       m.cy=ty;
-      if(nl){m.cd=.3;m.cling=false;}else{m.cling=true;m.cd=chimney()?.9:1.4;}
+      if(nl){m.cd=(elev[idx(tx,ty)]&&elev[idx(tx,ty+1)])?.07:.3;m.cling=false;}else{m.cling=true;m.cd=chimney()?.9:1.4;}
       return;
     }
     if(place(m.cx,m.cy)){m.cd=.08;return;}
@@ -673,7 +682,7 @@ function actMove(dt){
   if(solid(tx,ty)){m.dig=null;if(hintT<=0)hint('Blocked. Use the DIG pad to dig.',2);return;}
   m.dig=null;
   const tl=lad[idx(tx,ty)]===1;
-  if(on||tl||m.cling){if(!tl)place(tx,ty);m.cy=ty;m.cd=.1;if(lad[idx(tx,ty)])m.cling=false;}
+  if(on||tl||m.cling){if(!tl)place(tx,ty);m.cy=ty;m.cd=(elev[idx(tx,ty)]&&elev[idx(tx,ty-1)])?.06:.1;if(lad[idx(tx,ty)])m.cling=false;}
 }
 function land(){
   const n=m.fallN;m.falling=false;m.fallN=0;
@@ -685,7 +694,7 @@ function land(){
 }
 function knockOut(){
   if(state!=='play')return;if(m.ride){const c=rideCart();m.ride=null;if(c)syncRide(c,true);}m.kx=m.cx;m.ky=m.cy;
-  state='ko';koT=2.1;ptrs.clear();m.dig=null;m.knocks++;railMode=false;
+  state='ko';koT=2.1;ptrs.clear();m.dig=null;m.knocks++;railMode=false;elevMode=false;
   const i=idx(m.cx,m.cy);setLoot(i,Math.min(255,loot[i]+m.g),Math.min(255,lootPy[i]+m.py));m.g=0;m.py=0;
   sfx.over();
 }
@@ -740,7 +749,7 @@ function update(dt){
         if(m.cy>=ROWS-3){m.cy=ROWS-4;land();break;}
       }
     }else if(!doDig(dt)){if(m.cd<=0)actMove(dt);else if(!movePtr()&&!getDigDir())m.dig=null;}
-    if(m.cx!==m.lx||m.cy!==m.ly){m.lx=m.cx;m.ly=m.cy;if(railMode)layRail();}
+    if(m.cx!==m.lx||m.cy!==m.ly){m.lx=m.cx;m.ly=m.cy;if(railMode)layRail();if(elevMode)layElev();}
     if(!m.falling&&state==='play'){
       const li=idx(m.cx,m.cy);
       if(loot[li]||lootPy[li]){
@@ -872,7 +881,13 @@ function drawWorld(c){
         for(let k=0;k<n;k++){const h=hs(x*5+k,y*9);const gx=px+2+(h%11),gy=py+CS-4-((h>>5)%4);
           if(k<loot[i]){c.fillStyle=`rgba(255,214,60,${Math.min(1,b+.3)})`;c.beginPath();c.arc(gx,gy,2,0,7);c.fill();}else{c.fillStyle=`rgba(214,216,122,${Math.min(1,b+.3)})`;c.fillRect(gx-1.5,gy-1.5,3,3);}}
       }
-      if(lad[i]){
+      if(elev[i]){
+        const ea=Math.min(1,b+.2);
+        c.fillStyle=`rgba(70,78,90,${ea})`;c.fillRect(px+1,py,3,CS);c.fillRect(px+CS-4,py,3,CS);
+        c.fillStyle=`rgba(230,190,40,${ea})`;for(let r=0;r<CS;r+=6)c.fillRect(px+1,py+r,3,3),c.fillRect(px+CS-4,py+r,3,3);
+        c.fillStyle=`rgba(150,158,170,${ea*.8})`;c.fillRect(px+7,py,2,CS);
+        c.fillStyle=`rgba(90,98,110,${ea})`;c.fillRect(px+4,py+CS-3,CS-8,2);
+      }else if(lad[i]){
         c.fillStyle=`rgba(190,140,80,${Math.min(1,b+.15)})`;c.fillRect(px+3,py,2,CS);c.fillRect(px+CS-5,py,2,CS);
         c.fillStyle=`rgba(150,105,55,${Math.min(1,b+.15)})`;for(let r=2;r<CS;r+=5)c.fillRect(px+3,py+r,CS-6,2);
       }
@@ -979,7 +994,7 @@ function drawHUD(c){
   c.fillText('Depth '+Math.max(0,m.cy-SURF+1)+' m',12,W<600?100:52);
   // buttons
   for(const bt of btnList()){
-    const on=[...ptrs.values()].some(o=>o.btn)&&bt.id==='ladder'||(bt.id==='rail'&&railMode);
+    const on=[...ptrs.values()].some(o=>o.btn)&&bt.id==='ladder'||(bt.id==='rail'&&railMode)||(bt.id==='elev'&&elevMode);
     c.fillStyle=on?'rgba(255,210,58,.9)':'rgba(30,20,10,.7)';c.beginPath();c.arc(bt.x,bt.y,bt.r,0,7);c.fill();
     c.strokeStyle='#ffd23a';c.lineWidth=2.5;c.stroke();
     if(bt.id==='ladder'){
