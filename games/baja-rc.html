@@ -609,7 +609,7 @@ function updateRival(g, dt, locked) {
   }
 }
 /* the tow truck's own recovery arm swings out, pushes it back onto its wheels and tucks away */
-var SELF_T = 1.2;
+var SELF_T = .7;
 function updateSelf(g, dt) {
   var s = g.self, V = g.V;
   s.t += dt; V.vx = V.vy = V.om = 0; V.thr = V.brk = 0;
@@ -659,7 +659,7 @@ function gameStep(g, inp, dt) {
   if (g.veh === 'tow') { g.cash = c0; g.earned = e0; g.ev = g.ev.filter(function (e) { return e.k !== 'pay'; }); } /* the tow truck works for free */
 }
 function gameStep0(g, inp, dt) {
-  var V = g.V, locked = g.locked || g.repairLeft > 0 || g.wrecked || g.self || (g.tow && g.tow.ph < 3);
+  var V = g.V, locked = g.locked || g.repairLeft > 0 || g.wrecked || (g.tow && g.tow.ph < 3);
   g.T.ensure(V.x + 2800);
   if (g.inv > 0) g.inv -= dt;
   if (g.soakT > 0) g.soakT = Math.max(0, g.soakT - dt);
@@ -678,8 +678,7 @@ function gameStep0(g, inp, dt) {
   }
   g.powerMul = (.65 + .35 * rf) * (1 - clamp((g.temp - .85) / .15, 0, 1) * .5) * (g.hot ? .35 : 1);
   if (g.tow && g.tow.ph < 3) { updateTow(g, dt); V.vx = V.vy = V.om = 0; V.thr = V.brk = 0; }
-  else if (g.self) { updateSelf(g, dt); }
-  else { physStep(g, locked ? NOIN : inp, dt); if (g.tow) updateTow(g, dt); }
+  else { physStep(g, locked ? NOIN : inp, dt); if (g.tow) updateTow(g, dt); if (g.self) { g.self.t += dt; if (g.self.t >= SELF_T) g.self = null; } }
   spawnProps(g); updateProps(g, dt);
 
   var sp = (V.c[0] || V.c[1]) ? Math.sqrt(V.vx * V.vx + V.vy * V.vy) : Math.abs(V.vx);
@@ -747,11 +746,11 @@ function gameStep0(g, inp, dt) {
   }
 
   /* stuck on its back for a moment: flip it upright, for a price */
-  if (Math.abs(wrapPi(V.th)) > 1.45 && V.bc && sp < (g.veh === 'tow' ? 320 : 90) && !g.wrecked) g.flipT += dt; else g.flipT = Math.max(0, g.flipT - dt * 2);
+  if (Math.abs(wrapPi(V.th)) > 1.45 && V.bc && (sp < 90 || g.veh === 'tow') && !g.wrecked) g.flipT += dt; else g.flipT = Math.max(0, g.flipT - dt * 2);
   /* lying on its side or wedged tilted and going nowhere: counts as flipped too */
   if (Math.abs(wrapPi(V.th)) > .8 && (V.bc || V.c[0] || V.c[1]) && !(V.c[0] && V.c[1]) && sp < 40 && !g.wrecked && !g.tow) g.sT = (g.sT || 0) + dt; else g.sT = Math.max(0, (g.sT || 0) - dt * .5);
   if (g.sT > 3) { g.sT = 0; g.flipT = 1.3; }
-  if (g.flipT > (g.veh === 'tow' ? .35 : 1.2) && !g.tow && !g.self) { g.flipT = 0; if (g.veh === 'tow') { g.self = { t: 0, th0: wrapPi(V.th), y0: V.y }; g.ev.push({ k: 'selfright' }); } else startTow(g); }
+  if (g.flipT > (g.veh === 'tow' ? .12 : 1.2) && !g.tow && !g.self) { g.flipT = 0; if (g.veh === 'tow') { g.self = { t: 0 }; V.th = Math.atan(slopeAt(g.T, V.x)); V.om = 0; V.y = Math.min(V.y, groundAt(g.T, V.x) - 70); g.ev.push({ k: 'selfright' }); } /* flip it back on the spot and keep driving: no lock, no stall */ else startTow(g); }
   /* no input and nearly stopped: park it so it never creeps away while you repair or upgrade */
   if (!g.tow && !g.wrecked && inp.gas < .05 && inp.brake < .05 && sp < 45 && (V.c[0] || V.c[1] || V.bc) && (Math.abs(wrapPi(V.th)) < .7 || Math.abs(wrapPi(V.th)) > 2.5)) { V.vx = 0; V.om *= .6; if (V.vy < 0) V.vy = 0; }
     /* flat out but going nowhere (wedged against a step or lip): hop and shove forward to clear it */
