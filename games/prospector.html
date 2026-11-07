@@ -44,7 +44,7 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
   <canvas id="c"></canvas>
   <div id="title" class="ov">
     <h1>Prospector</h1>
-    <p>Dig for gold in the old mine. Build a haul line before night falls. Solo, or up to 8 prospectors in teams.</p>
+    <p>Dig for gold in the old mine. Take all the time you want. Solo, or up to 8 prospectors in teams.</p>
     <div class="steps">
       <div><b>1</b><em>DRAG</em> or use the pad &mdash; the miner walks, digs and climbs.</div>
       <div><b>2</b><em>READ THE DIRT</em> &mdash; black specks hint at ore. Warm round glints are gold, pale square glints are fool&rsquo;s gold.</div>
@@ -61,7 +61,7 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
     <div id="lobjoin" style="display:flex;gap:10px;align-items:center;margin:4px 0 8px"><span class="note" style="margin:0">Room code</span><input id="lobcode" maxlength="6" value="GOLD"><input id="lobname" class="nm" maxlength="10" placeholder="Your name"><button id="lobgo" class="sm">Join</button></div>
     <div id="lobroster" style="width:min(560px,100%)"></div><p id="lobrule" class="note" style="margin:6px 0"></p>
     <div style="display:flex;gap:12px"><button id="lobstart" class="sm" style="display:none">Start the dig</button><button id="lobback" class="sm sec">Back</button></div></div>
-  <div id="shop" class="ov"><h1 style="font-size:36px">Supply Shack</h1><p id="shopcash" class="note" style="font-size:20px;font-weight:800;color:#9be7a8"></p><div id="shoprows"></div><button id="shopclose" style="margin-top:10px">Back to the mine</button></div>
+  <div id="shop" class="ov"><h1 style="font-size:36px">Supply Shack</h1><p id="shopcash" class="note" style="font-size:20px;font-weight:800;color:#9be7a8"></p><div id="shoprows"></div><div style="display:flex;gap:12px;margin-top:10px"><button id="shopclose">Back to the mine</button><button id="shopfinish" class="sec sm">Finish &amp; see results</button></div></div>
 </div>
 
 <script>
@@ -231,7 +231,7 @@ let koT=0,state='title',time=0,left=DAY,camY=0,hurtT=0,shake=0,best=0,flash=0,hi
 let m=null,parts=[],texts=[];
 const ptrs=new Map();let lastHoriz=true,lastDir=null,lastDirT=-9;
 try{best=+localStorage.getItem('prospector_best')||0;}catch(e){}
-function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
+function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,ride:null,rideT:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
 function resetGame(seed,go){
   gen(seed);m=newMiner();parts=[];texts=[];ptrs.clear();left=DAY;hurtT=0;shake=0;flash=0;hintT=0;lastDir=null;
   camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
@@ -345,6 +345,8 @@ function applyOp(op){
       if(s.t0!==c.src){c.src=s.t0;c.t0=s.t0?Date.now():0;}
       break;}
     case 'cdel':{const i=carts.findIndex(k=>k.id===op.id&&k.owner!==NET.id);if(i>=0)carts.splice(i,1);break;}
+    case 'take':{const c=carts.find(k=>k.id===op.id);if(c&&c.owner===NET.id){c.g=Math.max(0,c.g-op.g);c.py=Math.max(0,c.py-op.py);pushCart(c);if(c.team!==(NET.tm[op.o.split(':')[0]]||0)&&(op.g+op.py)>0)hint('Someone just robbed one of your carts!',3);}break;}
+    case 'cmove':{const c=carts.find(k=>k.id===op.id);if(c&&c.mode==='idle'){c.x=op.x;c.y=op.y;c.rx=op.x;c.ry=op.y;}break;}
     case 'sendreq':{const c=carts.find(k=>k.id===op.id);if(c&&c.owner===NET.id&&c.mode==='idle'&&c.g+c.py>0)trySend(c,true);break;}
     case 'load':{const c=carts.find(k=>k.id===op.id);if(c&&c.owner===NET.id&&c.mode==='idle'){const r=CARTCAP-c.g-c.py,a=Math.min(op.g,r),b=Math.min(op.py,r-a);c.g+=a;c.py+=b;pushCart(c);}break;}
   }
@@ -420,6 +422,8 @@ document.getElementById('lobback').onclick=()=>{A();sfx.click();netLeave();elLob
 /* ================= BUTTONS / BUILDING ================= */
 const atShack=()=>!m.falling&&m.cy===SURF-1&&m.cx>=1&&m.cx<=9;
 const cartHere=()=>carts.find(c=>c.mode==='idle'&&c.x===m.cx&&c.y===m.cy&&c.owner===NET.id);
+const cartAny=()=>carts.find(c=>c.mode==='idle'&&c.x===m.cx&&c.y===m.cy);
+const rideCart=()=>m.ride&&carts.find(c=>c.id===m.ride);
 const loaded=()=>carts.some(c=>c.mode==='idle'&&c.team===m.team&&c.g+c.py>0);
 function btnList(){
   const L=[{id:'ladder',x:BTN.x,y:BTN.y,r:BTN.r,l:'LADDER ×'+m.stock}];
@@ -427,6 +431,7 @@ function btnList(){
   if(m.rails>0||railMode)ids.push(['rail','RAIL ×'+m.rails]);
   if(m.carts>0||cartHere())ids.push(['cart',cartHere()&&cartHere().g+cartHere().py===0?'TAKE':'CART ×'+m.carts]);
   if(m.lamps>0)ids.push(['lamp','LAMP ×'+m.lamps]);
+  if(m.ride||cartAny())ids.push(['ride',m.ride?'GET OFF':'RIDE']);
   if(loaded())ids.push(['send','SEND']);
   if(m.py>0)ids.push(['dump','DROP']);
   if(atShack())ids.push(['shop','SHOP']);
@@ -437,6 +442,7 @@ function act(id){
   if(id==='ladder')return doLadder();
   if(id==='rail'){if(m.rails<=0&&!railMode){hint('No rails. Buy some at the shack.');return;}railMode=!railMode;sfx.click();if(railMode)layRail();hint(railMode?'Laying rail as you move.':'Rail laying off.');return;}
   if(id==='cart')return doCart();
+  if(id==='ride')return doRide();
   if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();hint('Lamp lit. Its glow reveals gold and gems nearby, and you wake here if knocked out.',4);bell(1400,.05);hint('Lamp hung.');return;}
   if(id==='send'){const c=carts.filter(c=>c.mode==='idle'&&c.team===m.team&&c.g+c.py>0).sort((a,b)=>Math.abs(a.x-m.cx)+Math.abs(a.y-m.cy)-Math.abs(b.x-m.cx)-Math.abs(b.y-m.cy))[0];if(c)trySend(c,false);return;}
   if(id==='dump'){addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-8,'Dumped '+m.py+' fool’s','#ff9a6c',14);m.py=0;sfx.thud();return;}
@@ -449,6 +455,35 @@ function layRail(){
 }
 function snapCart(c){return {id:c.id,team:c.team,owner:c.owner,x:c.x,y:c.y,g:c.g,py:c.py,path:c.path,t0:c.t0};}
 function pushCart(c){sendOp({k:'cart',c:snapCart(c)});}
+function takeFrom(c){
+  const room=CAP-m.g-m.py;if(room<=0||!(c.g+c.py))return 0;
+  const a=Math.min(c.g,room),b=Math.min(c.py,room-a);if(!a&&!b)return 0;
+  m.g+=a;m.py+=b;c.g-=a;c.py-=b;
+  if(c.owner===NET.id)pushCart(c);else sendOp({k:'take',id:c.id,g:a,py:b});
+  return a+b;
+}
+function doRide(){
+  if(m.ride){
+    const c=rideCart();m.ride=null;
+    if(c){syncRide(c,true);}
+    if(!supported())m.cling=true;
+    sfx.click();hint('Off the cart.');return;
+  }
+  const c=cartAny();if(!c)return;
+  if(c.id===m.ride)return;
+  m.ride=c.id;m.dig=null;m.cling=false;m.rideT=0;sfx.roll();
+  if(c.g+c.py>0){
+    if(c.team!==m.team||c.owner===NET.id&&false){}
+    const n=takeFrom(c);
+    if(n){addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-20,'You find '+n+' gold in the cart!','#ffd23a',16);sfx.gold();}
+    else if(c.g+c.py>0)hint('Pack full. There is gold in this cart.',3);
+  }
+  hint('Riding. Use the pad to roll along the rails.',3);
+}
+function syncRide(c,force){
+  c.x=m.cx;c.y=m.cy;c.rx=m.cx;c.ry=m.cy;
+  if(c.owner===NET.id)pushCart(c);else sendOp({k:'cmove',id:c.id,x:m.cx,y:m.cy});
+}
 function doCart(){
   const here=cartHere();
   if(here&&here.g+here.py===0){carts.splice(carts.indexOf(here),1);m.carts++;sendOp({k:'cdel',id:here.id});sfx.click();hint('Cart picked up.');return;}
@@ -483,11 +518,11 @@ function bankCart(c,late){
 }
 function cartTick(c){
   if(!c.path){c.mode='idle';c.rx=c.x;c.ry=c.y;return;}
-  const L=c.path.length-1,trip=L/9,e=(Date.now()-c.t0)/1000;
+  const L=c.path.length-1,trip=L/14,e=(Date.now()-c.t0)/1000;
   const at=f=>{const i=clamp(Math.floor(f),0,L),j=Math.min(L,i+1),fr=clamp(f-i,0,1),a=c.path[i],b=c.path[j];return {x:lerp(a%COLS,b%COLS,fr),y:lerp(Math.floor(a/COLS),Math.floor(b/COLS),fr)};};
-  if(e<trip){c.mode='going';const q=at(e*9);c.rx=q.x;c.ry=q.y;return;}
+  if(e<trip){c.mode='going';const q=at(e*14);c.rx=q.x;c.ry=q.y;return;}
   if(c.owner===NET.id&&!c.banked){c.banked=true;bankCart(c,false);pushCart(c);}
-  if(e<2*trip){c.mode='back';const q=at(L-(e-trip)*9);c.rx=q.x;c.ry=q.y;}
+  if(e<2*trip){c.mode='back';const q=at(L-(e-trip)*14);c.rx=q.x;c.ry=q.y;}
   else{c.mode='idle';c.path=null;c.rx=c.x;c.ry=c.y;}
 }
 function loadCart(c,g,py){
@@ -535,7 +570,7 @@ function doLadder(){
 }
 const place=(x,y)=>{if(m.stock>0&&!lad[idx(x,y)]&&!solid(x,y)){lad[idx(x,y)]=1;sendOp({k:'l',i:idx(x,y)});m.stock--;sfx.ladder();return true;}return false;};
 const hasLad=()=>lad[idx(m.cx,m.cy)]===1;
-const supported=()=>m.cling||hasLad()||solid(m.cx,m.cy+1)||m.cy===SURF-1;
+const supported=()=>m.ride||m.cling||hasLad()||solid(m.cx,m.cy+1)||m.cy===SURF-1;
 const chimney=()=>solid(m.cx-1,m.cy)||solid(m.cx+1,m.cy);
 
 /* ================= UPDATE ================= */
@@ -572,8 +607,19 @@ function dig(x,y,dt){
   if(m.digSfx<=0){m.digSfx=.2;(t===2||t===7?sfx.rock:sfx.dig)();const p=cellPx(x,y);burst(p.x+8,p.y+8,3,['#8a5a36','#b98a5a','#6b4527'],50,30);}
   if(m.dig.t>=DT[t]){collect(x,y,t);grid[idx(x,y)]=0;sendOp({k:'c',i:idx(x,y),v:0});m.dig=null;m.cd=.03;}
 }
+function rideMove(d){
+  const c=rideCart();if(!c||c.mode!=='idle'){m.ride=null;return;}
+  if(!d){return;}
+  const tx=m.cx+d.dx,ty=m.cy+d.dy;
+  if(!inb(tx,ty)||!rail[idx(tx,ty)]||(solid(tx,ty))){return;}
+  m.cx=tx;m.cy=ty;m.cd=.07;m.face=d.dx||m.face;
+  c.x=tx;c.y=ty;c.rx=tx;c.ry=ty;
+  m.rideT-=.07;
+  if(m.rideT<=0){m.rideT=.25;if(c.owner===NET.id)pushCart(c);else sendOp({k:'cmove',id:c.id,x:tx,y:ty});}
+}
 function actMove(dt){
   const d=getDir();
+  if(m.ride){if(d){lastDir=d;lastDirT=time;}rideMove(d);return;}
   if(d){lastDir=d;lastDirT=time;}
   if(!d){m.dig=null;return;}
   const tx=m.cx+d.dx,ty=m.cy+d.dy,on=hasLad();
@@ -619,7 +665,7 @@ function land(){
   }else if(n>=1){sfx.step();}
 }
 function knockOut(){
-  if(state!=='play')return;m.kx=m.cx;m.ky=m.cy;
+  if(state!=='play')return;if(m.ride){const c=rideCart();m.ride=null;if(c)syncRide(c,true);}m.kx=m.cx;m.ky=m.cy;
   state='ko';koT=2.1;ptrs.clear();m.dig=null;m.knocks++;railMode=false;
   const i=idx(m.cx,m.cy);setLoot(i,Math.min(255,loot[i]+m.g),Math.min(255,lootPy[i]+m.py));m.g=0;m.py=0;
   sfx.over();
@@ -662,7 +708,6 @@ function update(dt){
   if(flash>0)flash=Math.max(0,flash-dt*1.4);
   if(hintT>0)hintT-=dt;
   if(state==='play'){
-    left-=dt;
     m.cd-=dt;
     if(m.cling&&(solid(m.cx,m.cy+1)||hasLad()))m.cling=false;
     if(!m.falling&&!supported()){m.falling=true;m.fallN=0;m.fcd=0;m.dig=null;sfx.fall();}
@@ -689,17 +734,16 @@ function update(dt){
       cartTick(c);
       if(c.mode==='idle'){
         c.cd-=dt;
-        if(c.team===m.team&&!m.falling&&m.cy===c.y&&Math.abs(m.cx-c.x)<=1&&(m.g||m.py)&&c.cd<=0){
+        if(c.team===m.team&&!m.ride&&!m.falling&&m.cy===c.y&&Math.abs(m.cx-c.x)<=1&&(m.g||m.py)&&c.cd<=0){
           const [a,b]=loadCart(c,m.g,m.py);
           if(a||b){m.g-=a;m.py-=b;addText((OX-camXr)+c.x*CS+8,c.y*CS-camY-8,'+'+(a+b)+' to cart','#e8c98a',14);sfx.load();c.cd=.6;}
         }
-        if(c.owner===NET.id&&c.g+c.py>=CARTCAP)trySend(c,true);
+        if(c.owner===NET.id&&c.g+c.py>=CARTCAP&&c.id!==m.ride)trySend(c,true);
       }
     }
     if(state==='play'&&!m.falling&&m.cy===SURF-1&&m.cx>=1&&m.cx<=9)bank();
     m.deepest=Math.max(m.deepest,m.cy-SURF+1);
     updateSeen();
-    if(left<=0&&state==='play')endGame('night');
   }
   if(state==='ko'){koT-=dt;if(koT<=0)respawn();}
   if(state==='count'&&NET.go&&Date.now()>=NET.go.startAt)state='play';
@@ -732,7 +776,7 @@ function showResults(){
   }
   const score=mp?teamEarn(m.team):m.banked,isBest=!mp&&score>best;if(isBest){best=score;try{localStorage.setItem('prospector_best',best);}catch(e){}}
   const carried=m.g*UV;
-  const title=mp?(NET.coop?'Night falls':(()=>{const a=teamEarn(0),b=teamEarn(1);return a===b?'A tie!':(a>b?'Red wins':'Blue wins');})()):'Night falls';
+  const title=mp?(NET.coop?'Day done':(()=>{const a=teamEarn(0),b=teamEarn(1);return a===b?'A tie!':(a>b?'Red wins':'Blue wins');})()):'Day done';
   const verdict=mp?(NET.coop?'The whole crew worked one claim.':'Teams shared the mine, rails and ladders.'):(carried?`You were still carrying ${m.g} gold. It doesn’t count until the shack.`:(score>=600?'Hell of a day, prospector.':score>=250?'A decent claim.':'Barely paid for the lamp oil.'));
   elOver.innerHTML=`<h1>${title}</h1>${mp?standings:`<div class="big">$${score}</div>`}<p class="note">${verdict}${isBest?' <b style="color:#ffd23a">New best!</b>':''}</p>
   <table><tr><td>Your hauls</td><td>${m.trips}</td><td>Your gold dug</td><td>${m.minedG}</td></tr><tr><td>Deepest</td><td>${m.deepest} m</td><td>Falls / KOs</td><td>${m.falls} / ${m.knocks}</td></tr><tr><td>Rail laid</td><td>${m.laid}</td><td>${mp?'Your earnings':'Best'}</td><td>$${mp?m.banked:best}</td></tr></table>
@@ -740,6 +784,7 @@ function showResults(){
   elOver.style.display='flex';
   document.getElementById('again').onclick=()=>{A();sfx.click();if(mp){NET.started=false;NET.go=null;NET.cc=0;NET.pre=[];NET.seenOps=new Set();elOver.style.display='none';state='lobby';pushPresence(true);renderLobby();elLobby.style.display='flex';}else resetGame();};
 }
+document.getElementById('shopfinish').onclick=()=>{A();sfx.click();elShop.style.display='none';state='play';endGame('done');};
 document.getElementById('play').onclick=()=>{A();sfx.click();netLeave();resetGame();};
 if(!MPOK())document.getElementById('mp').style.display='none';
 document.getElementById('mp').onclick=()=>{A();sfx.click();elTitle.style.display='none';state='lobby';renderLobby();elLobby.style.display='flex';};
@@ -828,9 +873,7 @@ function drawWorld(c){
     c.fillStyle='#4a4d52';c.beginPath();c.arc(px+4.5,py+CS-2.5,2.4,0,7);c.arc(px+CS-4.5,py+CS-2.5,2.4,0,7);c.fill();
     c.fillStyle='#8a4a22';c.beginPath();c.moveTo(px+1,py+6);c.lineTo(px+CS-1,py+6);c.lineTo(px+CS-3,py+CS-4);c.lineTo(px+3,py+CS-4);c.closePath();c.fill();
     c.fillStyle='#5d2f12';c.fillRect(px+1,py+5,CS-2,2);
-    if(k.g+k.py>0){c.fillStyle='#ffc61a';c.beginPath();c.moveTo(px+3,py+6);c.quadraticCurveTo(px+8,py+6-2-full*6,px+CS-3,py+6);c.fill();
-      if(k.py){c.fillStyle='#c9c25a';c.fillRect(px+4,py+4-full*2,3,2);}
-      if(Math.sin(time*5+rx)>.8){c.fillStyle='#fff';c.fillRect(px+6,py+2-full*4,3,1);}}
+    if(k.g+k.py>0){c.fillStyle='#4b3a2a';c.beginPath();c.moveTo(px+3,py+6);c.quadraticCurveTo(px+8,py+3,px+CS-3,py+6);c.fill();}
   }
   // surface strip, shack, entrance
   const gy=SURF*CS-cy;
@@ -901,7 +944,7 @@ function drawHUD(c){
   }
   c.font='800 16px -apple-system,system-ui,sans-serif';c.textBaseline='middle';
   const mm=Math.floor(Math.max(0,left)/60),ss=Math.floor(Math.max(0,left)%60),port=W<600;
-  c.textAlign='center';c.fillStyle=left<30?'#ff8a6c':'#fff';c.fillText(`${mm}:${ss<10?'0':''}${ss}`,port?W/2+10:W/2-90,21);
+  
   c.fillStyle='#ffd23a';c.fillStyle=m.g+m.py>=CAP?'#ff8a6c':'#ffd23a';c.fillText(`Pack ${m.g+m.py}/${CAP}${m.py?`  (${m.py} fool’s)`:''}${m.gems?`  ◆${m.gems}`:''}`,port?W/2:W/2+40,port?52:21);
   c.textAlign='right';c.fillStyle='#9be7a8';c.fillText('Cash $'+cashNow(),W-18,21);
   c.textBaseline='alphabetic';
