@@ -46,11 +46,11 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
     <h1>Prospector</h1>
     <p>Dig for gold in the old mine. Take all the time you want. Solo, or up to 8 prospectors in teams.</p>
     <div class="steps">
-      <div><b>1</b><em>DRAG</em> or use the pad &mdash; the miner walks, digs and climbs.</div>
+      <div><b>1</b><em>LEFT PAD</em> walks, hops and climbs. <em>RIGHT PAD</em> digs the block it points at.</div>
       <div><b>2</b><em>READ THE DIRT</em> &mdash; black specks hint at ore. Warm round glints are gold, pale square glints are fool&rsquo;s gold.</div>
       <div><b>3</b><em>GOLD IS HEAVY</em> &mdash; you carry only 6. Bank it at the shack for cash, or load it into a <em>rail cart</em>.</div>
       <div><b>4</b><em>BUILD</em> &mdash; spend cash at the shack on <em>rails, carts and lamps</em>. Rails run from a cart up to the surface; <em>SEND</em> hauls the load and banks it.</div>
-      <div><b>5</b><em>LADDERS</em> &mdash; tap LADDER to drop a run toward where you were pointing.</div>
+      <div><b>5</b><em>LADDERS</em> &mdash; tap LADDER to drop a run toward where you were heading.</div>
       <div><b>6</b><em>FALLS HURT</em> &mdash; 3 cells or more costs hearts. Knocked out? You wake at the shack, your pack stays where you fell, carts stay safe. You can always haul yourself up, slowly.</div>
     </div>
     <div style="display:flex;gap:14px"><button id="play">Solo</button><button id="mp" class="sec">Multiplayer</button></div>
@@ -69,7 +69,7 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
 'use strict';
 let W=900,H=450;
 const CS=16,COLS=56,ROWS=100,SURF=8,OX=2;
-const BTN={x:0,y:0,r:36},PAD={x:0,y:0,r:92};
+const BTN={x:0,y:0,r:36},PAD={x:0,y:0,r:92},DPAD={x:0,y:0,r:74};
 let camX=0,camXr=0;
 const DAY=360, HEART=25, UV=15, CAP=6, CARTCAP=30;
 const DT={1:.30,2:.95,3:.45,4:.45,5:.9,6:.4,7:1e9,8:.7};
@@ -92,7 +92,7 @@ let scale=1,dpr=1;
 function fit(){
   const portrait=innerHeight>innerWidth;W=portrait?450:900;H=portrait?900:450;
   stage.style.width=W+'px';stage.style.height=H+'px';cv.style.width=W+'px';cv.style.height=H+'px';
-  BTN.x=W-52;BTN.y=H-60;PAD.x=106;PAD.y=H-106;
+  BTN.x=W-206;BTN.y=H-56;PAD.x=106;PAD.y=H-106;DPAD.x=W-96;DPAD.y=H-96;
   const s=Math.min(innerWidth/W,innerHeight/H);scale=s;dpr=Math.min(3,window.devicePixelRatio||1);
   stage.style.transform=`translate(${(innerWidth-W*s)/2}px,${(innerHeight-H*s)/2}px) scale(${s})`;
   cv.width=Math.round(W*s*dpr);cv.height=Math.round(H*s*dpr);}
@@ -241,7 +241,7 @@ function resetGame(seed,go){
     camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
     state=Date.now()<go.startAt?'count':'play';
   }else state='play';
-  shopSeen=false;hint('Gold hides in the dirt until a lamp lights it up. You start with one lamp. Black specks hint at ore.',6);
+  shopSeen=false;hint('Left pad moves. Right pad digs. Lamps reveal gold.',6);
 }
 function hint(t,s){hintTxt=t;hintT=s||1.6;}
 function addText(x,y,txt,color,size){texts.push({x,y,txt,color,size:size||16,life:1.3});}
@@ -252,9 +252,10 @@ const cellPx=(x,y)=>({x:(OX-camXr)+x*CS,y:y*CS-camY});
 function pos(e){const r=cv.getBoundingClientRect();return {x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
 cv.addEventListener('pointerdown',e=>{
   e.preventDefault();A();if(state!=='play')return;
-  const p=pos(e),o={id:e.pointerId,x:p.x,y:p.y,btn:false,pad:false};
+  const p=pos(e),o={id:e.pointerId,x:p.x,y:p.y,btn:false,pad:false,dpad:false};
   const hit=btnList().find(b=>Math.hypot(p.x-b.x,p.y-b.y)<=b.r+8);
   if(hit){o.btn=true;ptrs.set(e.pointerId,o);act(hit.id);}
+  else if(Math.hypot(p.x-DPAD.x,p.y-DPAD.y)<=DPAD.r+12){o.dpad=true;ptrs.set(e.pointerId,o);}
   else if(Math.hypot(p.x-PAD.x,p.y-PAD.y)<=PAD.r+14){o.pad=true;ptrs.set(e.pointerId,o);}
   else ptrs.set(e.pointerId,o);
   try{cv.setPointerCapture(e.pointerId);}catch(_){}
@@ -266,8 +267,26 @@ cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 function movePtr(){
   for(const o of ptrs.values())if(o.pad)return o;
-  for(const o of ptrs.values())if(!o.btn)return o;
+  for(const o of ptrs.values())if(!o.btn&&!o.dpad)return o;
   return null;
+}
+let lastDigH=true;
+function getDigDir(){
+  let o=null;for(const q of ptrs.values())if(q.dpad){o=q;break;}
+  if(!o)return null;
+  const dx=o.x-DPAD.x,dy=o.y-DPAD.y,ax=Math.abs(dx),ay=Math.abs(dy);
+  if(Math.max(ax,ay)<18)return null;
+  const h=ax>ay*1.15?true:ay>ax*1.15?false:lastDigH;lastDigH=h;
+  return h?{dx:Math.sign(dx),dy:0}:{dx:0,dy:Math.sign(dy)};
+}
+function doDig(dt){
+  const dd=getDigDir();
+  if(!dd){if(!movePtr())m.dig=null;return false;}
+  if(m.ride||m.falling)return false;
+  m.face=dd.dx||m.face;
+  const tx=m.cx+dd.dx,ty=m.cy+dd.dy;
+  if(!inb(tx,ty)||!solid(tx,ty)){m.dig=null;return false;}
+  dig(tx,ty,dt);return true;
 }
 function getDir(){
   const o=movePtr();if(!o)return null;
@@ -435,7 +454,7 @@ function btnList(){
   if(loaded())ids.push(['send','SEND']);
   if(m.py>0)ids.push(['dump','DROP']);
   if(atShack())ids.push(['shop','SHOP']);
-  ids.forEach((q,i)=>L.push({id:q[0],l:q[1],x:BTN.x,y:BTN.y-64-i*54,r:24}));
+  ids.forEach((q,i)=>L.push({id:q[0],l:q[1],x:W-52,y:H-206-i*54,r:24}));
   return L;
 }
 function act(id){
@@ -621,7 +640,7 @@ function actMove(dt){
   const d=getDir();
   if(m.ride){if(d){lastDir=d;lastDirT=time;}rideMove(d);return;}
   if(d){lastDir=d;lastDirT=time;}
-  if(!d){m.dig=null;return;}
+  if(!d)return;
   const tx=m.cx+d.dx,ty=m.cy+d.dy,on=hasLad();
   if(d.dx){
     m.face=d.dx;
@@ -630,14 +649,14 @@ function actMove(dt){
       if((t===1||t===2)&&!m.cling&&(on||solid(m.cx,m.cy+1)||m.cy===SURF-1)&&inb(tx,ty-1)&&!solid(tx,ty-1)&&!solid(m.cx,m.cy-1)){
         m.dig=null;m.cx=tx;m.cy=ty-1;m.cd=.24;sfx.step();return;
       }
-      dig(tx,ty,dt);return;
+      m.dig=null;if(hintT<=0)hint('Blocked. Use the DIG pad to dig.',2);return;
     }
     m.dig=null;m.cx=tx;m.cd=on?.2:.15;m.cling=false;sfx.step();
     if(inb(tx,ty+1)&&!solid(tx,ty+1)&&!lad[idx(tx,ty+1)]&&!lad[idx(tx,ty)]&&solid(tx,ty+2)&&ty+1<=ROWS-1){m.cy=ty+1;m.cd=.2;}
     return;
   }
   if(d.dy<0){
-    if(solid(tx,ty)){dig(tx,ty,dt);return;}
+    if(solid(tx,ty)){m.dig=null;if(hintT<=0)hint('Blocked. Use the DIG pad to dig.',2);return;}
     m.dig=null;
     const tl=lad[idx(tx,ty)]===1,hold=on||m.cling;
     if(hold||tl){
@@ -651,7 +670,7 @@ function actMove(dt){
     if(place(m.cx,m.cy)){m.cd=.08;return;}
     m.cling=true;m.cy=ty;m.cd=chimney()?.9:1.4;hint('No ladders: hauling yourself up, slowly.',2);return;
   }
-  if(solid(tx,ty)){dig(tx,ty,dt);return;}
+  if(solid(tx,ty)){m.dig=null;if(hintT<=0)hint('Blocked. Use the DIG pad to dig.',2);return;}
   m.dig=null;
   const tl=lad[idx(tx,ty)]===1;
   if(on||tl||m.cling){if(!tl)place(tx,ty);m.cy=ty;m.cd=.1;if(lad[idx(tx,ty)])m.cling=false;}
@@ -719,8 +738,7 @@ function update(dt){
         m.cy++;m.fallN++;m.fcd+=.06;
         if(m.cy>=ROWS-3){m.cy=ROWS-4;land();break;}
       }
-    }else if(m.cd<=0)actMove(dt);
-    else if(!movePtr())m.dig=null;
+    }else if(!doDig(dt)){if(m.cd<=0)actMove(dt);else if(!movePtr()&&!getDigDir())m.dig=null;}
     if(m.cx!==m.lx||m.cy!==m.ly){m.lx=m.cx;m.ly=m.cy;if(railMode)layRail();}
     if(!m.falling&&state==='play'){
       const li=idx(m.cx,m.cy);
@@ -984,6 +1002,21 @@ function drawHUD(c){
     }
     let nx=PAD.x,ny=PAD.y;if(po){const dx=po.x-PAD.x,dy=po.y-PAD.y,d=Math.hypot(dx,dy)||1,k=Math.min(d,40)/d;nx+=dx*k;ny+=dy*k;}
     c.fillStyle=po?'rgba(255,210,58,.85)':'rgba(255,255,255,.28)';c.beginPath();c.arc(nx,ny,23,0,7);c.fill();
+  }
+  // dig pad
+  {
+    const dp=[...ptrs.values()].find(o=>o.dpad),dd=dp?getDigDir():null;
+    c.fillStyle='rgba(40,18,8,.55)';c.beginPath();c.arc(DPAD.x,DPAD.y,DPAD.r,0,7);c.fill();
+    c.strokeStyle='rgba(255,138,60,.8)';c.lineWidth=2;c.stroke();
+    for(const [ax,ay] of [[0,-1],[1,0],[0,1],[-1,0]]){
+      const on=dd&&dd.dx===ax&&dd.dy===ay,cx=DPAD.x+ax*47,cy=DPAD.y+ay*47;
+      c.fillStyle=on?'#ff8a3c':'rgba(255,200,160,.55)';c.beginPath();
+      c.moveTo(cx+ax*12,cy+ay*12);c.lineTo(cx-ay*12-ax*9,cy+ax*12-ay*9);c.lineTo(cx+ay*12-ax*9,cy-ax*12-ay*9);c.closePath();c.fill();
+    }
+    let nx=DPAD.x,ny=DPAD.y;if(dp){const dx=dp.x-DPAD.x,dy=dp.y-DPAD.y,d=Math.hypot(dx,dy)||1,k=Math.min(d,32)/d;nx+=dx*k;ny+=dy*k;}
+    c.fillStyle=dp?'rgba(255,138,60,.9)':'rgba(255,200,160,.3)';c.beginPath();c.arc(nx,ny,19,0,7);c.fill();
+    c.fillStyle='#fff';c.font='900 11px -apple-system,system-ui,sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('DIG',nx,ny);c.textBaseline='alphabetic';
+    c.fillStyle='rgba(255,255,255,.7)';c.fillText('MOVE',PAD.x,PAD.y-PAD.r-8);
   }
   // finger arrow
   const d=getDir();
