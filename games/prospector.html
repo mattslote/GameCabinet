@@ -69,7 +69,7 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
 'use strict';
 let W=900,H=450;
 const CS=16,COLS=56,ROWS=100,SURF=8,OX=2;
-const BTN={x:0,y:0,r:36},PAD={x:0,y:0,r:60};
+const BTN={x:0,y:0,r:36},PAD={x:0,y:0,r:92};
 let camX=0,camXr=0;
 const DAY=360, HEART=25, UV=15, CAP=6, CARTCAP=30;
 const DT={1:.30,2:.95,3:.45,4:.45,5:.9,6:.4,7:1e9};
@@ -91,7 +91,7 @@ let scale=1,dpr=1;
 function fit(){
   const portrait=innerHeight>innerWidth;W=portrait?450:900;H=portrait?900:450;
   stage.style.width=W+'px';stage.style.height=H+'px';cv.style.width=W+'px';cv.style.height=H+'px';
-  BTN.x=W-52;BTN.y=H-60;PAD.x=76;PAD.y=H-76;
+  BTN.x=W-52;BTN.y=H-60;PAD.x=106;PAD.y=H-106;
   const s=Math.min(innerWidth/W,innerHeight/H);scale=s;dpr=Math.min(3,window.devicePixelRatio||1);
   stage.style.transform=`translate(${(innerWidth-W*s)/2}px,${(innerHeight-H*s)/2}px) scale(${s})`;
   cv.width=Math.round(W*s*dpr);cv.height=Math.round(H*s*dpr);}
@@ -270,7 +270,7 @@ function getDir(){
   const o=movePtr();if(!o)return null;
   const ox=o.pad?PAD.x:(OX-camXr)+m.rx*CS+CS/2,oy=o.pad?PAD.y:m.ry*CS-camY+CS/2;
   const dx=o.x-ox,dy=o.y-oy,ax=Math.abs(dx),ay=Math.abs(dy);
-  if(Math.max(ax,ay)<(o.pad?14:12))return null;
+  if(Math.max(ax,ay)<(o.pad?20:12))return null;
   const horiz=ax>ay*1.15?true:ay>ax*1.15?false:lastHoriz;lastHoriz=horiz;
   return horiz?{dx:Math.sign(dx),dy:0}:{dx:0,dy:Math.sign(dy)};
 }
@@ -575,8 +575,16 @@ function actMove(dt){
   const tx=m.cx+d.dx,ty=m.cy+d.dy,on=hasLad();
   if(d.dx){
     m.face=d.dx;
-    if(solid(tx,ty)){dig(tx,ty,dt);return;}
-    m.dig=null;m.cx=tx;m.cd=on?.2:.15;m.cling=false;sfx.step();return;
+    if(solid(tx,ty)){
+      const t=grid[idx(tx,ty)];
+      if((t===1||t===2)&&!m.cling&&(on||solid(m.cx,m.cy+1)||m.cy===SURF-1)&&inb(tx,ty-1)&&!solid(tx,ty-1)&&!solid(m.cx,m.cy-1)){
+        m.dig=null;m.cx=tx;m.cy=ty-1;m.cd=.24;sfx.step();return;
+      }
+      dig(tx,ty,dt);return;
+    }
+    m.dig=null;m.cx=tx;m.cd=on?.2:.15;m.cling=false;sfx.step();
+    if(inb(tx,ty+1)&&!solid(tx,ty+1)&&!lad[idx(tx,ty+1)]&&!lad[idx(tx,ty)]&&solid(tx,ty+2)&&ty+1<=ROWS-1){m.cy=ty+1;m.cd=.2;}
+    return;
   }
   if(d.dy<0){
     if(solid(tx,ty)){dig(tx,ty,dt);return;}
@@ -587,7 +595,7 @@ function actMove(dt){
       const nl=lad[idx(tx,ty)]===1;
       if(!hold&&!tl)return;
       m.cy=ty;
-      if(nl){m.cd=.22;m.cling=false;}else{m.cling=true;m.cd=chimney()?.9:1.4;}
+      if(nl){m.cd=.3;m.cling=false;}else{m.cling=true;m.cd=chimney()?.9:1.4;}
       return;
     }
     if(place(m.cx,m.cy)){m.cd=.08;return;}
@@ -596,7 +604,7 @@ function actMove(dt){
   if(solid(tx,ty)){dig(tx,ty,dt);return;}
   m.dig=null;
   const tl=lad[idx(tx,ty)]===1;
-  if(on||tl||m.cling){if(!tl)place(tx,ty);m.cy=ty;m.cd=.2;if(lad[idx(tx,ty)])m.cling=false;}
+  if(on||tl||m.cling){if(!tl)place(tx,ty);m.cy=ty;m.cd=.1;if(lad[idx(tx,ty)])m.cling=false;}
 }
 function land(){
   const n=m.fallN;m.falling=false;m.fallN=0;
@@ -913,12 +921,12 @@ function drawHUD(c){
     c.strokeStyle='rgba(255,210,58,.7)';c.lineWidth=2;c.stroke();
     const arrows=[[0,-1],[1,0],[0,1],[-1,0]];
     for(const [ax,ay] of arrows){
-      const on=pd&&pd.dx===ax&&pd.dy===ay,cx=PAD.x+ax*38,cy=PAD.y+ay*38;
+      const on=pd&&pd.dx===ax&&pd.dy===ay,cx=PAD.x+ax*58,cy=PAD.y+ay*58;
       c.fillStyle=on?'#ffd23a':'rgba(255,255,255,.55)';c.beginPath();
-      c.moveTo(cx+ax*9,cy+ay*9);c.lineTo(cx-ay*9-ax*7,cy+ax*9-ay*7);c.lineTo(cx+ay*9-ax*7,cy-ax*9-ay*7);c.closePath();c.fill();
+      c.moveTo(cx+ax*14,cy+ay*14);c.lineTo(cx-ay*14-ax*11,cy+ax*14-ay*11);c.lineTo(cx+ay*14-ax*11,cy-ax*14-ay*11);c.closePath();c.fill();
     }
-    let nx=PAD.x,ny=PAD.y;if(po){const dx=po.x-PAD.x,dy=po.y-PAD.y,d=Math.hypot(dx,dy)||1,k=Math.min(d,26)/d;nx+=dx*k;ny+=dy*k;}
-    c.fillStyle=po?'rgba(255,210,58,.85)':'rgba(255,255,255,.28)';c.beginPath();c.arc(nx,ny,15,0,7);c.fill();
+    let nx=PAD.x,ny=PAD.y;if(po){const dx=po.x-PAD.x,dy=po.y-PAD.y,d=Math.hypot(dx,dy)||1,k=Math.min(d,40)/d;nx+=dx*k;ny+=dy*k;}
+    c.fillStyle=po?'rgba(255,210,58,.85)':'rgba(255,255,255,.28)';c.beginPath();c.arc(nx,ny,23,0,7);c.fill();
   }
   // finger arrow
   const d=getDir();
