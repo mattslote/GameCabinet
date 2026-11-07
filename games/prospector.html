@@ -718,6 +718,7 @@ function updateSeen(){
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
     const x=m.cx+dx,y=m.cy+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);
     if(d<=3.4&&seen[i]<1)seen[i]=1;
+    if(d<=1.01){const t=grid[i];if(t>=3&&t<=6||t===8)seen[i]=2;}
   }
 }
 function update(dt){
