@@ -72,7 +72,8 @@ const CS=16,COLS=56,ROWS=100,SURF=8,OX=2;
 const BTN={x:0,y:0,r:36},PAD={x:0,y:0,r:92};
 let camX=0,camXr=0;
 const DAY=360, HEART=25, UV=15, CAP=6, CARTCAP=30;
-const DT={1:.30,2:.95,3:.45,4:.45,5:.9,6:.4,7:1e9};
+const DT={1:.30,2:.95,3:.45,4:.45,5:.9,6:.4,7:1e9,8:.7};
+const GEM=[null,{n:'Ruby',v:120,c:'#e8344f',c2:'#ff9aa8'},{n:'Emerald',v:100,c:'#2fcf7a',c2:'#a6ffcf'},{n:'Sapphire',v:140,c:'#3b7bff',c2:'#a9c7ff'}];
 const BASE={
   1:[[124,87,52],[136,96,59],[112,78,47]],
   2:[[98,100,106],[86,88,94],[110,110,114]],
@@ -156,7 +157,7 @@ const sfx={
 
 /* ================= WORLD ================= */
 const grid=new Uint8Array(COLS*ROWS),lad=new Uint8Array(COLS*ROWS),seen=new Uint8Array(COLS*ROWS),clue=new Uint8Array(COLS*ROWS);
-const rail=new Uint8Array(COLS*ROWS),lampA=new Uint8Array(COLS*ROWS),loot=new Uint8Array(COLS*ROWS),lootPy=new Uint8Array(COLS*ROWS);
+const rail=new Uint8Array(COLS*ROWS),lampA=new Uint8Array(COLS*ROWS),gemC=new Uint8Array(COLS*ROWS),loot=new Uint8Array(COLS*ROWS),lootPy=new Uint8Array(COLS*ROWS);
 let carts=[],lamps=[],railMode=false,shopSeen=false;
 const inb=(x,y)=>x>=0&&x<COLS&&y>=0&&y<ROWS;
 const solid=(x,y)=>{if(x<0||x>=COLS||y<0||y>=ROWS)return true;return y>=SURF&&grid[idx(x,y)]!==0;};
@@ -186,7 +187,7 @@ function walker(x,y,steps){
   }
 }
 function genBody(){
-  grid.fill(0);lad.fill(0);seen.fill(0);clue.fill(0);rail.fill(0);lampA.fill(0);loot.fill(0);lootPy.fill(0);carts=[];lamps=[];railMode=false;
+  grid.fill(0);lad.fill(0);seen.fill(0);clue.fill(0);rail.fill(0);lampA.fill(0);gemC.fill(0);loot.fill(0);lootPy.fill(0);carts=[];lamps=[];railMode=false;
   for(let y=SURF;y<ROWS;y++)for(let x=0;x<COLS;x++)grid[idx(x,y)]=1;
   for(let k=0;k<80;k++){const y=rand(SURF+4,ROWS-2);blob(rand(0,COLS),y,rand(1.5,3.6)*(1+(y-SURF)/ROWS*.5),2,.92,false);}
   for(let y=ROWS-3;y<ROWS;y++)for(let x=0;x<COLS;x++)grid[idx(x,y)]=7;
@@ -200,6 +201,8 @@ function genBody(){
   pockets(46,3,1,1.9,.12); pockets(30,4,1,1.8,0);
   for(let k=0;k<10;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+12,ROWS-6));if(grid[idx(x,y)]===2||grid[idx(x,y)]===1)grid[idx(x,y)]=5;}
   for(let k=0;k<18;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+3,ROWS-5));if(grid[idx(x,y)]===1)grid[idx(x,y)]=6;}
+  // buried gems: rare, hidden in plain dirt, only a lamp's glow shows them
+  for(let k=0,n=0;k<400&&n<16;k++){const x=Math.floor(rand(1,COLS-1)),y=Math.floor(rand(SURF+10,ROWS-5));const g=grid[idx(x,y)];if(g===1||g===2){grid[idx(x,y)]=8;gemC[idx(x,y)]=1+Math.floor(rand(0,3));n++;}}
   // old mine: entrance shaft with a ladder, then wandering tunnels, plus caverns
   for(let y=SURF;y<=SURF+13;y++){grid[idx(12,y)]=0;lad[idx(12,y)]=1;}
   walker(12,SURF+13,90);
@@ -434,7 +437,7 @@ function act(id){
   if(id==='ladder')return doLadder();
   if(id==='rail'){if(m.rails<=0&&!railMode){hint('No rails. Buy some at the shack.');return;}railMode=!railMode;sfx.click();if(railMode)layRail();hint(railMode?'Laying rail as you move.':'Rail laying off.');return;}
   if(id==='cart')return doCart();
-  if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();bell(1400,.05);hint('Lamp hung.');return;}
+  if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();hint('Lamp lit. Its glow reveals buried gems nearby, and you wake here if knocked out.',4);bell(1400,.05);hint('Lamp hung.');return;}
   if(id==='send'){const c=carts.filter(c=>c.mode==='idle'&&c.team===m.team&&c.g+c.py>0).sort((a,b)=>Math.abs(a.x-m.cx)+Math.abs(a.y-m.cy)-Math.abs(b.x-m.cx)-Math.abs(b.y-m.cy))[0];if(c)trySend(c,false);return;}
   if(id==='dump'){addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-8,'Dumped '+m.py+' fool’s','#ff9a6c',14);m.py=0;sfx.thud();return;}
   if(id==='shop')return openShop();
@@ -556,6 +559,7 @@ function collect(x,y,t){
   if(t===3){m.minedG++;give(1,0,x,y);addText(px,py,'Gold!','#ffd23a',16);sfx.gold();burst(px,py+8,10,['#ffd23a','#fff2a0'],90,60);}
   else if(t===5){m.minedG+=5;give(5,0,x,y);addText(px,py-6,'NUGGET!','#ffd23a',24);sfx.nugget();flash=.8;burst(px,py+8,28,['#ffd23a','#fff2a0','#fff'],150,80);}
   else if(t===4){give(0,1,x,y);addText(px,py,"Fool's gold",'#ff9a6c',14);sfx.junk();burst(px,py+8,6,['#c9c25a','#8c8640'],60,30);}
+  else if(t===8){const G=GEM[gemC[idx(x,y)]||1];m.gems=(m.gems||0)+1;m.gemVal=(m.gemVal||0)+G.v;addText(px,py-6,G.n.toUpperCase()+'!',G.c2,24);sfx.nugget();flash=.8;burst(px,py+8,26,[G.c,G.c2,'#fff'],150,80);}
   else if(t===6){m.stock+=4;addText(px,py,'+4 ladders','#e8c98a',15);sfx.crate();burst(px,py+8,10,['#a8742f','#c99552'],80,40);}
   else if(t===2){sfx.crumble();burst(px,py+8,8,['#8a8c94','#6a6c74'],60,30);}
   else{sfx.crumble();burst(px,py+8,6,['#8a5a36','#b98a5a'],55,30);}
@@ -615,16 +619,19 @@ function land(){
   }else if(n>=1){sfx.step();}
 }
 function knockOut(){
-  if(state!=='play')return;
+  if(state!=='play')return;m.kx=m.cx;m.ky=m.cy;
   state='ko';koT=2.1;ptrs.clear();m.dig=null;m.knocks++;railMode=false;
   const i=idx(m.cx,m.cy);setLoot(i,Math.min(255,loot[i]+m.g),Math.min(255,lootPy[i]+m.py));m.g=0;m.py=0;
   sfx.over();
 }
 function respawn(){
-  m.cx=m.sx;m.cy=SURF-1;m.rx=m.sx;m.ry=SURF-1;m.hp=HEART*4;m.falling=false;m.fallN=0;m.cling=false;m.dig=null;m.cd=.3;m.lx=m.sx;m.ly=SURF-1;
-  m.stock=Math.max(m.stock,10);left=Math.max(5,left-10);
+  let sx=m.sx,sy=SURF-1,atLamp=false,bd=1e9;
+  for(const l of lamps){const dd=Math.abs(l.x-m.kx)+Math.abs(l.y-m.ky);if(dd<bd&&!solid(l.x,l.y)){bd=dd;sx=l.x;sy=l.y;atLamp=true;}}
+  m.cx=sx;m.cy=sy;m.rx=sx;m.ry=sy;m.hp=HEART*4;m.falling=false;m.fallN=0;m.cling=false;m.dig=null;m.cd=.3;m.lx=sx;m.ly=sy;
+  if(!supported())m.cling=true;
+  m.stock=Math.max(m.stock,10);
   camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
-  state='play';hint('You wake at the shack. Your pack is where you fell. (-10s)',4);
+  state='play';hint(atLamp?'You wake beside a lamp. Your pack is where you fell.':'You wake at the shack. Your pack is where you fell.',4);
 }
 function bank(){
   const heal=m.hp<HEART*4,rest=m.stock<10;
@@ -636,16 +643,18 @@ function bank(){
     m.g=0;m.py=0;burst((OX-camXr)+m.cx*CS+8,m.cy*CS-camY,18,['#ffd23a','#fff2a0'],110,80);
     if(!shopSeen&&cashNow()>=30){shopSeen=true;hint('Tap SHOP: buy rails, a cart and lamps.',3.5);}
   }
+  if(m.gemVal>0){m.banked+=m.gemVal;m.trips++;sfx.bank();addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-52,'+$'+m.gemVal+' gems','#9fd0ff',20);burst((OX-camXr)+m.cx*CS+8,m.cy*CS-camY,16,['#e8344f','#2fcf7a','#3b7bff','#fff'],110,80);m.gems=0;m.gemVal=0;}
   if(heal){m.hp=HEART*4;addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-30,'Rested','#9be7a8',13);}
   if(rest)m.stock=10;
 }
 function updateSeen(){
-  for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=3.7){const t=grid[i];if(t>=3&&t<=6)seen[i]=2;}}
+  for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=3.7){const t=grid[i];if(t>=3&&t<=6)seen[i]=2;}if(d<=5&&grid[i]===8)seen[i]=2;}
   const R=7;
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
     const x=m.cx+dx,y=m.cy+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);
     if(d<=4.6&&seen[i]<1)seen[i]=1;
     if(d<=3.7){const t=grid[i];if((t>=3&&t<=6))seen[i]=2;}
+    if(d<=1.5&&grid[i]===8)seen[i]=2;
   }
 }
 function update(dt){
@@ -756,7 +765,7 @@ function drawWorld(c){
       if(seen[i]&&b<.3)b=.3;
       if(b<.04)continue;
       const lv=Math.min(12,Math.round(b*12)),t=grid[i],sh=hs(x,y)%3;
-      const base=(t>=3&&t<=6)?1:t;
+      const base=(t>=3&&t<=6||t===8)?1:t;
       const px=(OX-camXr)+x*CS,py=y*CS-cy;
       c.fillStyle=pal[base][sh][lv];c.fillRect(px,py,CS,CS);
       if(base===1){const h=hs(x*3,y*7);c.fillStyle=`rgba(0,0,0,${.14*b})`;c.fillRect(px+(h%12),py+((h>>4)%12),2,2);c.fillStyle=`rgba(255,230,190,${.08*b})`;c.fillRect(px+((h>>8)%13),py+((h>>12)%13),2,2);}
@@ -779,6 +788,13 @@ function drawWorld(c){
           const g=c.createRadialGradient(cxp,cyp,0,cxp,cyp,13);g.addColorStop(0,`rgba(255,235,120,${(.55+.4*tw)*a})`);g.addColorStop(1,'rgba(255,235,120,0)');
           c.fillStyle=g;c.beginPath();c.arc(cxp,cyp,13,0,7);c.fill();
           c.fillStyle=`rgba(255,246,190,${a})`;c.fillRect(cxp-2,cyp-2,4,4);c.fillRect(cxp-9-tw*3,cyp-.5,18+tw*6,1);c.fillRect(cxp-.5,cyp-9-tw*3,1,18+tw*6);
+        }else if(t===8){
+          const G=GEM[gemC[i]||1],pul=.6+.4*Math.sin(time*2.4+x*3+y);
+          const gr=c.createRadialGradient(cxp,cyp,0,cxp,cyp,12);gr.addColorStop(0,G.c+Math.round((.5+.4*pul)*a*255).toString(16).padStart(2,'0'));gr.addColorStop(1,G.c+'00');
+          c.fillStyle=gr;c.beginPath();c.arc(cxp,cyp,12,0,7);c.fill();
+          c.globalAlpha=Math.min(1,a+.2);c.fillStyle=G.c;c.beginPath();c.moveTo(cxp,cyp-5);c.lineTo(cxp+5,cyp-1);c.lineTo(cxp+3,cyp+5);c.lineTo(cxp-3,cyp+5);c.lineTo(cxp-5,cyp-1);c.closePath();c.fill();
+          c.fillStyle=G.c2;c.beginPath();c.moveTo(cxp,cyp-5);c.lineTo(cxp-2,cyp-1);c.lineTo(cxp,cyp+3);c.lineTo(cxp+2,cyp-1);c.closePath();c.fill();c.globalAlpha=1;
+          if(pul>.9){c.fillStyle='rgba(255,255,255,.95)';c.fillRect(cxp-7,cyp-.5,14,1);c.fillRect(cxp-.5,cyp-7,1,14);}
         }else if(t===6){
           c.fillStyle=`rgba(168,116,47,${a})`;c.fillRect(px+2,py+3,12,10);
           c.strokeStyle=`rgba(90,56,20,${a})`;c.lineWidth=1.2;c.strokeRect(px+2.5,py+3.5,11,9);c.beginPath();c.moveTo(px+2,py+3);c.lineTo(px+14,py+13);c.moveTo(px+14,py+3);c.lineTo(px+2,py+13);c.stroke();
@@ -888,7 +904,7 @@ function drawHUD(c){
   c.font='800 16px -apple-system,system-ui,sans-serif';c.textBaseline='middle';
   const mm=Math.floor(Math.max(0,left)/60),ss=Math.floor(Math.max(0,left)%60),port=W<600;
   c.textAlign='center';c.fillStyle=left<30?'#ff8a6c':'#fff';c.fillText(`${mm}:${ss<10?'0':''}${ss}`,port?W/2+10:W/2-90,21);
-  c.fillStyle='#ffd23a';c.fillStyle=m.g+m.py>=CAP?'#ff8a6c':'#ffd23a';c.fillText(`Pack ${m.g+m.py}/${CAP}${m.py?`  (${m.py} fool’s)`:''}`,port?W/2:W/2+40,port?52:21);
+  c.fillStyle='#ffd23a';c.fillStyle=m.g+m.py>=CAP?'#ff8a6c':'#ffd23a';c.fillText(`Pack ${m.g+m.py}/${CAP}${m.py?`  (${m.py} fool’s)`:''}${m.gems?`  ◆${m.gems}`:''}`,port?W/2:W/2+40,port?52:21);
   c.textAlign='right';c.fillStyle='#9be7a8';c.fillText('Cash $'+cashNow(),W-18,21);
   c.textBaseline='alphabetic';
   if(NET.started){
