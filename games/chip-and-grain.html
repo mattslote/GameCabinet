@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chip and Grain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one narrow column. Work-order ticket with a reference picture, the lathe, a readout line, then the controls for the current phase. */
+:root{
+  --bench:#17110d;
+  --panel:#251a12;
+  --panel2:#34261b;
+  --ink:#f1e7d6;
+  --dim:#a8957d;
+  --accent:#f2b134;
+  --paper:#dfe7e2;
+  --paperink:#1d2a26;
+  --stamp:#a8402c;
+  --red:#d9533f;
+  --blue:#5aa0e6;
+  --display:'Alfa Slab One','Rockwell','Georgia',serif;
+  --ui:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bench);color:var(--ink);color-scheme:dark}
+body{font-family:var(--ui);font-size:18px;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+#app{max-width:560px;margin:0 auto;padding:14px 14px 36px;display:flex;flex-direction:column;gap:10px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.brand{font-family:var(--display);font-size:21px}
+.meta{display:flex;gap:14px;text-transform:uppercase;letter-spacing:.09em;font-weight:600;font-size:14px;color:var(--dim)}
+.meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+.ticket{background:var(--paper);color:var(--paperink);border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.45);padding:10px 12px 11px;display:flex;flex-direction:column;gap:8px}
+.tkTop{display:flex;gap:12px;align-items:center}
+#ref{width:150px;height:auto;flex:none;background:#c4d0ca;border-radius:3px;padding:4px;display:block}
+.tkSide{font-family:var(--mono);font-size:12.5px;line-height:1.4;min-width:0}
+.no{font-family:var(--ui);font-weight:700;text-transform:uppercase;letter-spacing:.14em;font-size:13px;color:var(--stamp)}
+.who{font-weight:600}
+.dots{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px}
+.dots span{display:inline-flex;align-items:center;gap:5px}
+.dots i{width:11px;height:11px;border-radius:50%;border:1px solid rgba(0,0,0,.35);display:inline-block}
+.ask{font-family:var(--mono);font-size:13px;line-height:1.45}
+
+.phases{display:flex;gap:6px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;font-size:13px}
+.phases button{flex:1;font:inherit;text-transform:inherit;letter-spacing:inherit;font-weight:inherit;text-align:center;padding:8px 0;border:0;border-radius:3px;background:var(--panel);color:var(--dim);cursor:pointer}
+.phases button:disabled{cursor:default}
+.phases button:not(:disabled):not(.on):hover{color:var(--ink)}
+.phases button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.phases button.on{background:var(--accent);color:#1b1208}
+
+.stage{position:relative;width:100%;aspect-ratio:600/330;border-radius:6px;overflow:hidden;box-shadow:0 0 0 3px #3b2b1e,0 12px 30px rgba(0,0,0,.55);touch-action:none;background:#000}
+.stage canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;user-select:none;-webkit-user-select:none}
+.readout{font-family:var(--mono);font-size:12.5px;color:var(--dim);min-height:52px;line-height:1.4}
+.readout.warn{color:var(--red)}
+.loadrow{display:none;align-items:center;gap:10px}
+.loadrow.show{display:flex}
+.lb{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.lb i{display:block;height:100%;width:0}
+
+.modal{position:fixed;inset:0;background:rgba(18,12,9,.96);display:none;flex-direction:column;justify-content:center;gap:14px;padding:26px 24px;overflow:auto;z-index:5}
+.modal.show{display:flex}
+.modal>*{max-width:480px;width:100%;margin-left:auto;margin-right:auto}
+.modal h1{font-family:var(--display);font-weight:400;font-size:38px;line-height:1.02;margin:0;text-wrap:balance}
+.modal p{margin:0;line-height:1.35}
+.modal ol{margin:0;padding-left:20px;color:var(--ink);line-height:1.5}
+.modal ol b{color:var(--accent)}
+.big{font-family:var(--display);font-size:64px;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.rank{text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--dim);font-size:14px}
+.tally{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;font-variant-numeric:tabular-nums}
+.tally li{display:grid;grid-template-columns:1fr 46px;gap:8px;align-items:center;font-size:16px}
+.tally .bar{grid-column:1 / -1;height:5px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.tally .bar i{display:block;height:100%;background:var(--accent)}
+.tally .sc{text-align:right;font-weight:700}
+
+.btn{font:inherit;font-weight:700;text-transform:uppercase;letter-spacing:.07em;border:0;border-radius:4px;padding:10px 8px;min-height:46px;cursor:pointer;background:var(--panel2);color:var(--ink);line-height:1.1}
+.btn.primary{background:var(--accent);color:#1b1208;font-size:19px}
+.btn[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--accent)}
+.btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.4}
+.group{display:none;flex-direction:column;gap:8px}
+.group.show{display:flex}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tool{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:15px;padding:8px 2px}
+.tool small{font-weight:500;letter-spacing:.04em;color:var(--dim);font-size:12px;text-transform:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.label{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:700}
+.swatches{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.swatch{aspect-ratio:1;border-radius:50%;border:2px solid rgba(255,255,255,.2);cursor:pointer;padding:0;min-height:36px}
+.swatch[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 3px var(--accent)}
+.swatch:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+
+#result{display:none;background:var(--panel);border-radius:6px;padding:14px 16px 16px;flex-direction:column;gap:10px}
+#result.show{display:flex}
+#judging{font-family:var(--mono);font-size:14px;color:var(--dim);display:flex;gap:10px;align-items:center;min-height:22px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--accent);animation:pulse 1s infinite ease-in-out}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+#verdict{display:none;flex-direction:column;gap:11px}
+.scorerow{display:flex;align-items:baseline;gap:12px}
+.quote{font-size:20px;line-height:1.2;font-weight:600}
+.quote span{display:block;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:3px;font-weight:600}
+.parts{display:flex;flex-direction:column;gap:7px}
+.part{display:grid;grid-template-columns:78px 1fr 44px;gap:10px;align-items:center;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.part .g{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.part .g i{display:block;height:100%;background:var(--accent);width:0}
+.part b{text-align:right}
+.hint{color:var(--dim);font-size:15px;line-height:1.3}
+.pay{font-family:var(--mono);font-size:13px;color:var(--dim)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;color:var(--dim)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:2px;display:inline-block}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}.btn:active{transform:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Chip &amp; Grain</div>
+    <div class="meta"><span>Order <b id="mRound">1/5</b></span><span>Avg <b id="mAvg">--</b></span></div>
+  </header>
+
+  <section class="ticket" aria-live="polite">
+    <div class="tkTop">
+      <canvas id="ref" aria-label="Reference picture of the finished piece"></canvas>
+      <div class="tkSide">
+        <div class="no">Work order <span id="tNo">0001</span></div>
+        <div class="who" id="tWho">Customer</div>
+        <div class="dots" id="tDots"></div>
+        <div id="tPrice">$40</div>
+      </div>
+    </div>
+    <div class="ask" id="tAsk">Request</div>
+  </section>
+
+  <div class="phases"><button id="ph1" class="on">1 Turn</button><button id="ph2">2 Paint</button><button id="ph3" disabled>3 Inspect</button></div>
+
+  <div class="stage" id="stage"><canvas id="cv" aria-label="Lathe with a spinning wood piece. Press a tool or brush against it."></canvas></div>
+  <div class="readout" id="readout"></div>
+  <div class="loadrow" id="loadRow"><span class="label">Load</span><div class="lb"><i id="loadFill"></i></div></div>
+
+  <div class="group show" id="turnControls">
+    <div class="grid4" id="toolGrid" role="group" aria-label="Turning tools"></div>
+    <div class="row2">
+      <button class="btn" id="undoT">Undo cut</button>
+      <button class="btn" id="resetBtn">New blank</button>
+    </div>
+    <button class="btn primary" id="toPaint">Done turning, go paint</button>
+  </div>
+
+  <div class="group" id="paintControls">
+    <div class="label">Brush</div>
+    <div class="grid4" id="brushGrid" role="group" aria-label="Brushes"></div>
+    <div class="label">Paint</div>
+    <div class="swatches" id="swatchGrid" role="group" aria-label="Paint colors"></div>
+    <div class="row2">
+      <button class="btn" id="undoP">Undo stroke</button>
+      <button class="btn" id="toTurn">Back to turning</button>
+    </div>
+    <button class="btn primary" id="handBtn">Hand it to the customer</button>
+  </div>
+
+  <section id="result" aria-live="polite">
+    <div id="judging"><span class="dot"></span><span id="judgeText">Turning it over...</span></div>
+    <div id="verdict">
+      <div class="scorerow"><div class="big" id="score">1%</div><div class="rank">Verdict</div></div>
+      <div class="quote" id="quote"></div>
+      <div class="parts">
+        <div class="part"><span>Shape</span><div class="g"><i id="gShape"></i></div><b id="vShape">0%</b></div>
+        <div class="part"><span>Smooth</span><div class="g"><i id="gSmooth"></i></div><b id="vSmooth">0%</b></div>
+        <div class="part"><span>Paint</span><div class="g"><i id="gPaint"></i></div><b id="vPaint">0%</b></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--blue)"></i>Wood left on</span>
+        <span><i style="background:var(--red)"></i>Cut too deep</span>
+      </div>
+      <div class="hint" id="hint"></div>
+      <div class="hint">Under the piece: top strip is the paint ordered, bottom strip is yours.</div>
+      <div class="pay" id="pay"></div>
+      <button class="btn primary" id="nextBtn">Next order</button>
+      <button class="btn" id="reopenBtn">Not done. Back to painting</button>
+    </div>
+  </section>
+</div>
+
+<div class="modal show" id="intro">
+  <h1>Chip &amp; Grain</h1>
+  <p>A wood lathe. The blank spins on a bar, you shape it, then paint it to match the customer's order. They inspect it by hand and score it from 1% to 100%.</p>
+  <ol>
+    <li><b>Turn.</b> Press a tool into the spinning wood. Wood only comes off, so go slowly.</li>
+    <li><b>Sand.</b> Tool marks cost you points. Sandpaper smooths them.</li>
+    <li><b>Paint.</b> Pick a brush and a color and touch it to the spinning piece. It paints a ring.</li>
+  </ol>
+  <p style="color:var(--dim)">On a touch screen the tool lands on the surface under your finger. Drag down to push it in, drag up to back off.</p>
+  <button class="btn primary" id="startBtn">Open the shop</button>
+</div>
+
+<div class="modal" id="final">
+  <div class="rank" id="fRank">Shop closed</div>
+  <div class="big" id="fAvg">0%</div>
+  <ul class="tally" id="fList"></ul>
+  <div class="hint" id="fBest"></div>
+  <button class="btn primary" id="againBtn">Take new orders</button>
+</div>
+
+<script>
+/* ---------- Pure logic: shapes, palette, judging ---------- */
+var L = 480, A = 192, R0 = 96, MINR = 5, MAXT = 88, MM = 0.625;
+function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
+function hash(x, y){
+  var h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+var PALETTE = [
+  { n:'White',  c:[244,241,234] }, { n:'Black',  c:[27,27,29] },
+  { n:'Red',    c:[200,35,44] },   { n:'Orange', c:[236,122,28] },
+  { n:'Yellow', c:[242,207,46] },  { n:'Gold',   c:[199,152,36] },
+  { n:'Green',  c:[47,143,70] },   { n:'Teal',   c:[31,154,154] },
+  { n:'Blue',   c:[43,111,209] },  { n:'Navy',   c:[28,47,107] },
+  { n:'Purple', c:[122,63,160] },  { n:'Pink',   c:[232,115,166] },
+  { n:'Brown',  c:[106,68,38] }
+];
+function pIdx(name){ for (var i = 0; i < PALETTE.length; i++) if (PALETTE[i].n === name) return i; return -1; }
+var OBJECTS = {
+  pawn: { name:'Chess pawn', who:'Prof. Lindqvist',
+    ask:'One chess pawn, black, with a gold ring at the collar. Base on the left, head on the right.',
+    pts:[[0,8],[12,8],[16,72],[34,80],[48,80],[56,58],[74,44],[130,34],[200,28],[250,26],[262,28],[266,50],[290,52],[294,30],[308,30],[324,52],[346,66],[372,70],[396,62],[412,44],[426,26],[440,12],[479,8]],
+    paint:[[.04,.96,'Black'],[.54,.62,'Gold']] },
+  pin: { name:'Bowling pin', who:'Dex Morrow',
+    ask:'A bowling pin for the den. White all over with two red stripes on the neck. Fat end on the left.',
+    pts:[[0,8],[14,8],[18,48],[50,60],[100,78],[160,86],[210,82],[270,60],[310,40],[330,32],[352,30],[372,36],[392,52],[412,54],[432,46],[450,28],[466,14],[479,8]],
+    paint:[[.04,.96,'White'],[.655,.715,'Red'],[.745,.80,'Red']] },
+  candle: { name:'Candlestick', who:'Tilly Okafor',
+    ask:'A navy candlestick with one gold ring on the stem, halfway along. Cup on the right.',
+    pts:[[0,8],[14,8],[18,66],[56,72],[74,58],[88,42],[108,38],[126,50],[142,38],[156,24],[200,22],[236,26],[250,28],[256,44],[272,46],[278,28],[300,22],[340,22],[364,36],[374,56],[394,58],[414,54],[420,34],[438,28],[462,28],[479,8]],
+    paint:[[.04,.96,'Navy'],[.525,.575,'Gold']] },
+  vase: { name:'Vase', who:'Marisol Vega',
+    ask:'A teal vase with a white band around the neck. Mouth on the right.',
+    pts:[[0,8],[14,8],[18,40],[46,46],[80,62],[130,82],[190,88],[250,76],[300,50],[330,36],[350,32],[368,36],[392,50],[408,54],[422,46],[434,26],[450,14],[479,8]],
+    paint:[[.04,.94,'Teal'],[.68,.77,'White']] },
+  top: { name:'Spinning top', who:'Junie Bell',
+    ask:'A spinning top. Red body, a yellow band at the widest point, blue handle on the right.',
+    pts:[[0,8],[40,10],[110,30],[190,58],[240,78],[270,86],[300,84],[330,68],[350,46],[360,30],[372,24],[420,24],[450,26],[462,16],[479,8]],
+    paint:[[.04,.74,'Red'],[.74,.96,'Blue'],[.52,.62,'Yellow']] },
+  pin2: { name:'Rolling pin', who:'Gus Halvorsen',
+    ask:'A rolling pin. Leave the barrel as bare wood and paint both handles green.',
+    pts:[[0,8],[14,8],[18,26],[44,30],[70,26],[104,22],[116,26],[122,60],[130,64],[350,64],[358,60],[364,26],[376,22],[410,22],[440,28],[458,32],[466,14],[479,8]],
+    paint:[[.04,.245,'Green'],[.76,.96,'Green']] },
+  toad: { name:'Toadstool', who:'Bo Nakamura',
+    ask:'A toadstool. Red cap, white stem. Cap on the right.',
+    pts:[[0,8],[14,8],[20,32],[50,28],[110,26],[200,26],[262,30],[284,40],[290,76],[312,86],[352,88],[392,82],[430,62],[456,34],[470,14],[479,8]],
+    paint:[[.04,.585,'White'],[.595,.96,'Red']] }
+};
+/* shape-preserving cubic through control points -> radius per column */
+function hermite(pts){
+  var n = pts.length, d = [], m = [], i;
+  for (i = 0; i < n - 1; i++) d.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]));
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  for (i = 1; i < n - 1; i++) m[i] = (d[i - 1] * d[i] > 0) ? 2 * d[i - 1] * d[i] / (d[i - 1] + d[i]) : 0;
+  var out = new Float32Array(L), seg = 0;
+  for (var x = 0; x < L; x++){
+    while (seg < n - 2 && x >= pts[seg + 1][0]) seg++;
+    var p0 = pts[seg], p1 = pts[seg + 1], dx = p1[0] - p0[0];
+    var t = clamp((x - p0[0]) / dx, 0, 1), t2 = t * t, t3 = t2 * t;
+    var r = (2 * t3 - 3 * t2 + 1) * p0[1] + (t3 - 2 * t2 + t) * dx * m[seg] + (-2 * t3 + 3 * t2) * p1[1] + (t3 - t2) * dx * m[seg + 1];
+    out[x] = clamp(r, MINR, MAXT);
+  }
+  return out;
+}
+function targetColors(segs){
+  var tc = new Int8Array(L).fill(-1);
+  for (var s = 0; s < segs.length; s++){
+    var a = Math.round(segs[s][0] * L), b = Math.round(segs[s][1] * L), c = pIdx(segs[s][2]);
+    for (var i = a; i < b && i < L; i++) tc[i] = c;
+  }
+  return tc;
+}
+/* Shape sets the ceiling; smoothness and paint decide how much of it you keep. */
+function judgeAll(prof, rough, tprof, tcol, paint){
+  var i, err = 0, e0 = 0, pos = 0, neg = 0;
+  for (i = 0; i < L; i++){
+    var df = prof[i] - tprof[i];
+    err += Math.abs(df); e0 += Math.abs(R0 - tprof[i]);
+    if (df > 0) pos += df; else neg -= df;
+  }
+  err /= L; e0 /= L;
+  var shape = Math.pow(clamp((e0 - err) / (e0 - 2.6), 0, 1), 1.15);
+  var rm = 0; for (i = 0; i < L; i++) rm += rough[i];
+  var smooth = 1 - clamp(rm / L / 0.8, 0, 1);
+  var yr = new Float32Array(L), yg = new Float32Array(L), yb = new Float32Array(L), yc = new Float32Array(L);
+  var sum = 0, cnt = 0;
+  for (i = 0; i < L; i++){
+    var aS = 0, rS = 0, gS = 0, bS = 0, base = i * A * 4;
+    for (var a = 0; a < A; a++){
+      var q = base + a * 4, al = paint[q + 3];
+      aS += al; rS += paint[q] * al; gS += paint[q + 1] * al; bS += paint[q + 2] * al;
+    }
+    var cov = aS / (255 * A);
+    yc[i] = cov;
+    if (aS > 0){ yr[i] = rS / aS; yg[i] = gS / aS; yb[i] = bS / aS; }
+    var counted = true;
+    for (var d = -9; d <= 9; d++){ var j = clamp(i + d, 0, L - 1); if (tcol[j] !== tcol[i]) { counted = false; break; } }
+    if (!counted) continue;
+    var m;
+    if (tcol[i] < 0) m = cov < 0.1 ? 1 : 1 - cov;
+    else {
+      var c = PALETTE[tcol[i]].c;
+      var dist = Math.sqrt(Math.pow(yr[i] - c[0], 2) + Math.pow(yg[i] - c[1], 2) + Math.pow(yb[i] - c[2], 2));
+      m = clamp(cov / 0.92, 0, 1) * clamp(1 - (dist - 20) / 110, 0, 1);
+    }
+    sum += m; cnt++;
+  }
+  var paintS = cnt ? clamp(sum / cnt / 0.95, 0, 1) : 1;
+  var total = shape * (0.55 + 0.15 * smooth + 0.30 * paintS);
+  return { shape: shape, smooth: smooth, paint: paintS, total: total,
+    score: Math.max(1, Math.min(100, Math.round(total * 100))),
+    over: pos / L, under: neg / L, yr: yr, yg: yg, yb: yb, yc: yc };
+}
+</script>
+
+<script>
+/* ---------- Game ---------- */
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var cv = $('cv'), ctx = cv.getContext('2d');
+  var SW = 600, SH = 330, PX0 = 60, AXY = 138, BENCH = 252;
+  var bg = document.createElement('canvas');
+  var pcv = document.createElement('canvas'), pctx = pcv.getContext('2d'), pimg = null;
+  var Wp = 0, Hp = 0, K = 1;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SPIN = reduce ? 0.25 : 0.7;
+
+  var prof = new Float32Array(L), rough = new Float32Array(L), disp = new Float32Array(L), slope = new Float32Array(L), ridge = new Float32Array(L);
+  var W = new Uint8Array(L * A), paint = new Uint8ClampedArray(L * A * 4);
+  for (var ri = 0; ri < L; ri++) ridge[ri] = hash(ri, 77) * 2 - 1;
+
+  /* bite: most radius removed per frame in one column. cap: total removal the lathe can take per frame before it bogs down.
+     catchDepth: how far past the surface you can push before the tool grabs and digs in. */
+  var TOOLS = [
+    { id:'rough',   name:'Rough gouge', sub:'fast, wide', hw:15, bite:7,   cap:140, rg:.5,  catchDepth:0,  f:function(dx){ return 60 - Math.sqrt(3600 - dx * dx); },
+      note:'Rough gouge: removes a lot, fast. Shove it into dense wood and the lathe bogs down. Leaves torn grain, so sand after.' },
+    { id:'spindle', name:'Spindle gouge', sub:'coves',  hw:9,  bite:3.2, cap:60,  rg:.22, catchDepth:26, f:function(dx){ return 9 - Math.sqrt(Math.max(0, 81 - dx * dx)); },
+      note:'Spindle gouge: round nose for coves and beads. Medium bite, decent finish. Force it into dense wood and it stalls.' },
+    { id:'skew',    name:'Skew chisel', sub:'fine, clean', hw:3, bite:2.2, cap:22,  rg:.08, catchDepth:11,  polish:true, f:function(dx){ return dx * dx * .12; },
+      note:'Skew chisel: slow and delicate, but the cleanest surface. Light cuts polish. Shove it into dense wood and it stalls.' },
+    { id:'parting', name:'Parting tool', sub:'grooves', hw:1.6, bite:3.5, cap:14, rg:.05, catchDepth:0, lateral:2.2, f:function(){ return 0; },
+      note:'Parting tool: plunges a narrow groove. Drag it sideways while deep and it binds and stalls.' },
+    { id:'vee',     name:'V-tool', sub:'V cuts',        hw:9,  bite:3,   cap:55,  rg:.2,  catchDepth:24, f:function(dx){ return Math.abs(dx) * .9; },
+      note:'V-tool: cuts crisp V grooves. Force it through dense wood and it stalls.' },
+    { id:'scraper', name:'Scraper', sub:'flats',        hw:24, bite:1.6, cap:90,  rg:.3,  catchDepth:20, f:function(){ return 0; },
+      note:'Scraper: levels wide flats gently and leaves a fuzzy surface. Pushed hard into dense wood, it stalls.' },
+    { id:'sand',    name:'Sandpaper', sub:'smooths',    hw:16,
+      note:'Sandpaper: smooths tool marks and rounds high spots. Run it over the piece before painting.' }
+  ];
+  var BR = [
+    { id:'liner',  name:'Liner',   sub:'2 mm',     w:3.2, mode:'solid' },
+    { id:'round',  name:'Round',   sub:'6 mm',     w:9,   mode:'solid' },
+    { id:'flat',   name:'Flat',    sub:'15 mm',    w:24,  mode:'solid' },
+    { id:'roller', name:'Roller',  sub:'40 mm',    w:64,  mode:'solid' },
+    { id:'sponge', name:'Sponge',  sub:'dabbed',   w:30,  mode:'sponge' },
+    { id:'dry',    name:'Dry brush', sub:'streaky', w:20, mode:'dry' },
+    { id:'erase',  name:'Sand off', sub:'strips paint', w:18, mode:'erase' }
+  ];
+
+  var state = 'intro', run = [], round = 0, scores = [], cur = null, orderNo = 0;
+  var tprof = null, tcol = null, result = null;
+  var toolIdx = 1, brushIdx = 1, colorIdx = 2;
+  var tip = null, finger = null, holding = false, lastTipX = null;
+  var particles = [], spin = 0, judgeStart = 0, resultStart = 0, counting = false;
+  var histT = [], histP = [], showTemplate = true;
+  var Hd = new Float32Array(L), tmpCut = new Float32Array(128);
+  var toolActive = false, toolX = 0, toolD = 0, jam = 0, loadS = 0, frameLoad = 0, spinRate = SPIN, shake = 0, catchCool = 0, flashMsg = '', flashUntil = 0, lastBuzz = 0;
+
+  /* ---------- wood texture ---------- */
+  function pnoise(x, a, P){
+    var xi = Math.floor(x), ai = Math.floor(a), fx = x - xi, fa = a - ai;
+    var sx = fx * fx * (3 - 2 * fx), sa = fa * fa * (3 - 2 * fa);
+    var a0 = ((ai % P) + P) % P, a1 = (a0 + 1) % P;
+    var v00 = hash(xi, a0), v10 = hash(xi + 1, a0), v01 = hash(xi, a1), v11 = hash(xi + 1, a1);
+    return v00 + (v10 - v00) * sx + (v01 - v00) * sa + (v00 - v10 - v01 + v11) * sx * sa;
+  }
+  function genWood(){
+    var ox = Math.random() * 300;
+    for (var x = 0; x < L; x++) for (var ai = 0; ai < A; ai++){
+      var a = ai / A;
+      var n1 = pnoise(x * .006 + ox, a * 36, 36), n2 = pnoise(x * .02 + ox, a * 110, 110), n3 = pnoise(x * .002 + ox, a * 9, 9);
+      var stripe = .5 + .5 * Math.sin(6.2832 * (a * 20 + n3 * 3 + x * .0015));
+      var v = .34 * n1 + .26 * n2 + .22 * stripe + .18 * n3;
+      W[x * A + ai] = clamp((v - .2) * 1.7, 0, 1) * 255;
+    }
+  }
+
+  /* ---------- rendering the turned piece ---------- */
+  function nrm(x, y, z){ var l = Math.sqrt(x * x + y * y + z * z); return [x / l, y / l, z / l]; }
+  var LD = nrm(-.35, -.62, .70), FD = nrm(.55, .45, .35), HV = nrm(LD[0], LD[1], LD[2] + 1);
+  var SIN_N = 512, thFrac = new Float32Array(SIN_N + 1), cosT = new Float32Array(SIN_N + 1);
+  for (var si0 = 0; si0 <= SIN_N; si0++){ var sv = -1 + 2 * si0 / SIN_N; thFrac[si0] = Math.asin(sv) / (2 * Math.PI); cosT[si0] = Math.sqrt(1 - sv * sv); }
+  var WD = [184, 134, 84], WLt = [236, 202, 150];
+
+  function computeDisp(){
+    for (var i = 0; i < L; i++){
+      disp[i] = Math.max(3, prof[i] + rough[i] * ridge[i] * .9);
+      var a = Math.max(0, i - 2), b = Math.min(L - 1, i + 2);
+      slope[i] = (prof[b] - prof[a]) / (b - a);
+    }
+  }
+  function slopeOf(arr, out){
+    for (var i = 0; i < L; i++){ var a = Math.max(0, i - 2), b = Math.min(L - 1, i + 2); out[i] = (arr[b] - arr[a]) / (b - a); }
+  }
+  function renderPiece(img, wp, hp, k, dsp, slp, rgh, pnt, sp){
+    var buf = new Uint32Array(img.data.buffer); buf.fill(0);
+    var cy = hp / 2;
+    for (var px = 0; px < wp; px++){
+      var u = px / k, xi = u | 0; if (xi >= L - 1) xi = L - 2;
+      var fr = u - xi;
+      var r = (dsp[xi] + (dsp[xi + 1] - dsp[xi]) * fr) * k;
+      var sl = slp[xi] + (slp[xi + 1] - slp[xi]) * fr;
+      var ro = rgh ? rgh[xi] : 0;
+      var rn = Math.min(1, ro / 1.2);
+      var ring = (1 - .13 * rn * (.5 + .5 * Math.sin(xi * 1.7 + ridge[xi] * 3))) * (rgh ? 1 - .22 * clamp((Hd[xi] - 1.15) / .6, 0, 1) : 1);
+      var glossRaw = .10 * (1 - Math.min(1, ro / 1.5) * .8);
+      var y0 = Math.max(0, Math.floor(cy - r - 1)), y1 = Math.min(hp - 1, Math.ceil(cy + r + 1));
+      var col = xi * A;
+      for (var py = y0; py <= y1; py++){
+        var dy = py + .5 - cy, ad = dy < 0 ? -dy : dy;
+        var cov = r - ad + .5;
+        if (cov <= 0) continue;
+        if (cov > 1) cov = 1;
+        var s = dy / r; if (s > 1) s = 1; else if (s < -1) s = -1;
+        var si = ((s + 1) * .5 * SIN_N + .5) | 0;
+        var nx = -sl, ny = s, nz = cosT[si];
+        var inv = 1 / Math.sqrt(nx * nx + ny * ny + nz * nz + 1e-6);
+        nx *= inv; ny *= inv; nz *= inv;
+        var diff = nx * LD[0] + ny * LD[1] + nz * LD[2]; if (diff < 0) diff = 0;
+        var fill = nx * FD[0] + ny * FD[1] + nz * FD[2]; if (fill < 0) fill = 0;
+        var a = thFrac[si] + sp; a -= Math.floor(a);
+        var widx = col + ((a * A) | 0);
+        var gw = W[widx] / 255;
+        var R = WD[0] + (WLt[0] - WD[0]) * gw, G = WD[1] + (WLt[1] - WD[1]) * gw, B = WD[2] + (WLt[2] - WD[2]) * gw;
+        var gl = glossRaw;
+        var q = widx * 4, pa = pnt[q + 3] / 255;
+        if (pa > 0){
+          var tone = .92 + .14 * gw;
+          R = R * (1 - pa) + pnt[q] * tone * pa;
+          G = G * (1 - pa) + pnt[q + 1] * tone * pa;
+          B = B * (1 - pa) + pnt[q + 2] * tone * pa;
+          gl = glossRaw * (1 - pa) + .38 * pa;
+        }
+        var shade = (.20 + 1.0 * diff + .12 * fill) * ring;
+        var sp0 = nx * HV[0] + ny * HV[1] + nz * HV[2];
+        var spec = 0;
+        if (sp0 > 0){ var s2 = sp0 * sp0, s4 = s2 * s2, s8 = s4 * s4, s16 = s8 * s8; spec = s16 * s16 * gl; }
+        R = R * shade + 255 * spec; G = G * shade + 255 * spec; B = B * shade + 255 * spec;
+        R = R > 255 ? 255 : R | 0; G = G > 255 ? 255 : G | 0; B = B > 255 ? 255 : B | 0;
+        buf[py * wp + px] = ((cov * 255) << 24) | (B << 16) | (G << 8) | R;
+      }
+    }
+  }
+
+  /* ---------- scene background ---------- */
+  function steelV(b, x, y, w, h){
+    var g = b.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, '#9aa3a8'); g.addColorStop(.35, '#d4dadd'); g.addColorStop(.6, '#7f888d'); g.addColorStop(1, '#4b5256');
+    b.fillStyle = g; b.fillRect(x, y, w, h);
+  }
+  function drawBg(){
+    bg.width = cv.width; bg.height = cv.height;
+    var b = bg.getContext('2d'); b.setTransform(K, 0, 0, K, 0, 0);
+    var g = b.createLinearGradient(0, 0, 0, BENCH);
+    g.addColorStop(0, '#2d231a'); g.addColorStop(1, '#1b130d');
+    b.fillStyle = g; b.fillRect(0, 0, SW, SH);
+    b.strokeStyle = 'rgba(0,0,0,.28)'; b.lineWidth = 1;
+    for (var x = 75; x < SW; x += 75){ b.beginPath(); b.moveTo(x, 0); b.lineTo(x, BENCH); b.stroke(); }
+    g = b.createLinearGradient(0, BENCH, 0, SH);
+    g.addColorStop(0, '#60452f'); g.addColorStop(.05, '#43301f'); g.addColorStop(1, '#2b1d13');
+    b.fillStyle = g; b.fillRect(0, BENCH, SW, SH - BENCH);
+    b.fillStyle = 'rgba(255,220,170,.2)'; b.fillRect(0, BENCH, SW, 1.5);
+    steelV(b, 0, BENCH - 9, SW, 7);
+    steelV(b, 0, 24, SW, 6);
+    b.fillStyle = '#3a4045'; b.fillRect(8, 24, 8, AXY - 20); b.fillRect(SW - 16, 24, 8, AXY - 20);
+    var hg = b.createLinearGradient(0, 0, 46, 0);
+    hg.addColorStop(0, '#1d2124'); hg.addColorStop(.6, '#3b4247'); hg.addColorStop(1, '#2a3034');
+    b.fillStyle = hg; b.fillRect(0, AXY - 70, 46, 158);
+    hg = b.createLinearGradient(SW - 46, 0, SW, 0);
+    hg.addColorStop(0, '#2a3034'); hg.addColorStop(.4, '#3b4247'); hg.addColorStop(1, '#1d2124');
+    b.fillStyle = hg; b.fillRect(SW - 46, AXY - 70, 46, 158);
+    b.fillStyle = '#6f777c';
+    b.beginPath(); b.moveTo(46, AXY - 15); b.lineTo(PX0 - 1, AXY - 4); b.lineTo(PX0 - 1, AXY + 4); b.lineTo(46, AXY + 15); b.fill();
+    b.beginPath(); b.moveTo(SW - 46, AXY - 15); b.lineTo(SW - PX0 + 1, AXY - 4); b.lineTo(SW - PX0 + 1, AXY + 4); b.lineTo(SW - 46, AXY + 15); b.fill();
+    var rg = b.createLinearGradient(0, AXY - 3.5, 0, AXY + 3.5);
+    rg.addColorStop(0, '#e6ebed'); rg.addColorStop(.5, '#8d979c'); rg.addColorStop(1, '#3d4448');
+    b.fillStyle = rg; b.fillRect(40, AXY - 3.5, SW - 80, 7);
+  }
+  function resize(){
+    var rc = cv.getBoundingClientRect();
+    if (!rc.width) return;
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = Math.min(1000, Math.max(300, Math.round(rc.width * dpr)));
+    if (cv.width === w && pimg) return;
+    cv.width = w; cv.height = Math.round(w * SH / SW);
+    K = cv.width / SW;
+    Wp = Math.round(L * K); Hp = Math.round(2 * (R0 + 3) * K);
+    pcv.width = Wp; pcv.height = Hp;
+    pimg = pctx.createImageData(Wp, Hp);
+    drawBg();
+  }
+
+  /* ---------- orders ---------- */
+  function shuffle(a){ for (var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function resetBlank(){
+    prof.fill(R0); rough.fill(.2); paint.fill(0); genWood();
+    var hox = Math.random() * 500, k1 = 60 + Math.random() * 150, k2 = 280 + Math.random() * 150;
+    for (var hi = 0; hi < L; hi++){
+      Hd[hi] = .85 + .55 * pnoise(hi * .03 + hox, 0, 1) + .7 * Math.exp(-Math.pow((hi - k1) / 9, 2)) + .7 * Math.exp(-Math.pow((hi - k2) / 9, 2));
+    }
+    histT = []; histP = [];
+  }
+  function drawRef(){
+    var cvr = $('ref'), kr = 300 / L;
+    var tmax = 0; for (var i = 0; i < L; i++) if (tprof[i] > tmax) tmax = tprof[i];
+    var wp = 300, hp = Math.round(2 * (tmax + 3) * kr);
+    cvr.width = wp; cvr.height = hp;
+    var c = cvr.getContext('2d'), img = c.createImageData(wp, hp);
+    var tp = new Float32Array(L * A * 4), sl = new Float32Array(L);
+    for (var x = 0; x < L; x++){
+      var col = tcol[x];
+      for (var a = 0; a < A; a++){
+        var q = (x * A + a) * 4;
+        if (col >= 0){ var p = PALETTE[col].c; tp[q] = p[0]; tp[q + 1] = p[1]; tp[q + 2] = p[2]; tp[q + 3] = 255; }
+      }
+    }
+    slopeOf(tprof, sl);
+    renderPiece(img, wp, hp, kr, tprof, sl, null, tp, .12);
+    c.putImageData(img, 0, 0);
+  }
+  function loadOrder(){
+    cur = run[round];
+    var o = OBJECTS[cur];
+    tprof = hermite(o.pts); tcol = targetColors(o.paint);
+    resetBlank(); particles = []; result = null; counting = false;
+    orderNo++;
+    $('tNo').textContent = String(1000 + orderNo * 7 + Math.floor(Math.random() * 6));
+    $('tWho').textContent = o.who + ' wants a ' + o.name.toLowerCase();
+    $('tAsk').textContent = '"' + o.ask + '"';
+    $('tPrice').textContent = 'Pays $40';
+    var seen = [], dots = $('tDots'); dots.innerHTML = '';
+    o.paint.forEach(function(s){ if (seen.indexOf(s[2]) < 0) seen.push(s[2]); });
+    seen.forEach(function(n){
+      var sp = document.createElement('span'), i = document.createElement('i');
+      i.style.background = 'rgb(' + PALETTE[pIdx(n)].c.join(',') + ')';
+      sp.appendChild(i); sp.appendChild(document.createTextNode(n)); dots.appendChild(sp);
+    });
+    if (o.paint.every(function(s){ return s[2] !== undefined; }) && tcol.some(function(c, i){ return c < 0 && i > 0.27 * L && i < 0.73 * L; })){
+      var sp2 = document.createElement('span'), i2 = document.createElement('i');
+      i2.style.background = 'rgb(224,184,128)'; sp2.appendChild(i2); sp2.appendChild(document.createTextNode('Bare wood')); dots.appendChild(sp2);
+    }
+    $('mRound').textContent = (round + 1) + '/' + run.length;
+    updateAvg(); drawRef();
+    setState('turn');
+  }
+  function updateAvg(){
+    $('mAvg').textContent = scores.length ? Math.round(scores.reduce(function(a, b){ return a + b; }, 0) / scores.length) + '%' : '--';
+  }
+  function setState(s){
+    state = s;
+    $('turnControls').classList.toggle('show', s === 'turn');
+    $('loadRow').classList.toggle('show', s === 'turn');
+    $('paintControls').classList.toggle('show', s === 'paint');
+    $('result').classList.toggle('show', s === 'judging' || s === 'result');
+    $('ph1').classList.toggle('on', s === 'turn');
+    $('ph2').classList.toggle('on', s === 'paint');
+    $('ph3').classList.toggle('on', s === 'judging' || s === 'result');
+    holding = false; toolActive = false; jam = 0;
+    setReadout();
+  }
+
+  /* ---------- tools ---------- */
+  function snapshot(){
+    if (state === 'turn'){ histT.push({ p: prof.slice(), r: rough.slice() }); if (histT.length > 20) histT.shift(); }
+    else if (state === 'paint'){ histP.push(paint.slice()); if (histP.length > 12) histP.shift(); }
+  }
+  function spawnChips(tx, side, n, color, dust){
+    var xi = clamp(tx | 0, 0, L - 1);
+    for (var i = 0; i < n && particles.length < 120; i++){
+      particles.push({ x: PX0 + tx, y: AXY + side * prof[xi], vx: (Math.random() - .35) * (dust ? 30 : 80), vy: side * (-(dust ? 10 : 40) - Math.random() * (dust ? 30 : 90)),
+        t: 0, life: (dust ? .4 : .6) + Math.random() * .5, len: dust ? 1.5 : 4 + Math.random() * 5, ang: Math.random() * 3, c: color, dust: dust });
+    }
+  }
+  function flash(msg){ flashMsg = msg; flashUntil = performance.now() + 2400; }
+  var JAM = { skew: 1.0, spindle: 1.3, vee: 1.3, scraper: 1.2, parting: 1.0 };
+  /* The tool locks up against the wood. It stays exactly where it is until you ease off. */
+  function doStall(tx, side, T){
+    jam = 40; catchCool = 30; shake = .6;
+    spawnChips(tx, side, 4, 'rgb(226,184,126)', false);
+    flash('Stalled. The wood is too hard for this cut. Ease off and lift the tool to free it.');
+    try { if (navigator.vibrate) navigator.vibrate([30, 20, 30]); } catch (_) {}
+  }
+  function cutAt(tx, d, side, dxFrame){
+    var T = TOOLS[toolIdx], i, i0 = Math.max(0, Math.floor(tx - T.hw - 1)), i1 = Math.min(L - 1, Math.ceil(tx + T.hw + 1));
+    if (T.id === 'sand'){
+      var touching = false;
+      for (i = i0; i <= i1; i++){
+        var dx = (i + .5) - tx; if (Math.abs(dx) > T.hw) continue;
+        if (d > prof[i] + 4) continue;
+        touching = true;
+        var w = 1 - (dx * dx) / (T.hw * T.hw);
+        rough[i] *= (1 - .10 * w);
+        var sm = 0, cn = 0;
+        for (var j = Math.max(0, i - 3); j <= Math.min(L - 1, i + 3); j++){ sm += prof[j]; cn++; }
+        var avg = sm / cn;
+        if (prof[i] > avg) prof[i] -= Math.min(prof[i] - avg, .35 * w);
+      }
+      if (touching){ frameLoad = Math.max(frameLoad, .3); if (Math.random() < .5) spawnChips(tx, side, 1, 'rgba(240,225,200,.8)', true); }
+      return;
+    }
+    /* pass 1: what the tool wants to remove, and how hard the wood fights back */
+    var sum = 0, deepest = 0, n = 0;
+    for (i = i0; i <= i1; i++, n++){
+      tmpCut[n] = 0;
+      var dx2 = (i + .5) - tx; if (Math.abs(dx2) > T.hw) continue;
+      var lim = d + T.f(dx2);
+      if (lim < prof[i]){
+        var want = prof[i] - Math.max(lim, MINR);
+        if (want > deepest) deepest = want;
+        var c = Math.min(want, T.bite);
+        tmpCut[n] = c; sum += c * Hd[i];
+      }
+    }
+    var load = sum / T.cap, scale = load > 1 ? 1 / load : 1, cutTot = 0;
+    /* pass 2: take only what the lathe can handle this frame */
+    n = 0;
+    for (i = i0; i <= i1; i++, n++){
+      var cc = tmpCut[n] * scale;
+      if (cc < .001) continue;
+      prof[i] -= cc; cutTot += cc;
+      if (T.polish && cc < 1) rough[i] = Math.max(.02, rough[i] * .88);
+      else rough[i] = Math.min(1.6, rough[i] + T.rg * .5 + (loadS > .9 ? .12 : 0));
+    }
+    frameLoad = Math.max(frameLoad, load);
+    if (cutTot > .6) spawnChips(tx, side, Math.min(3, 1 + Math.floor(cutTot / 8)), 'rgb(226,184,126)', false);
+    if (catchCool <= 0){
+      var stall = (JAM[T.id] && load > JAM[T.id] && Math.random() < .08) || (T.lateral && cutTot > .5 && dxFrame > T.lateral && Math.random() < .35);
+      if (stall) doStall(tx, side, T);
+    }
+  }
+  function compositeCol(i, a, cr, cg, cb, al){
+    var q = (i * A + a) * 4, oa = paint[q + 3] / 255, na = al + oa * (1 - al);
+    if (na <= 0) return;
+    paint[q] = (cr * al + paint[q] * oa * (1 - al)) / na;
+    paint[q + 1] = (cg * al + paint[q + 1] * oa * (1 - al)) / na;
+    paint[q + 2] = (cb * al + paint[q + 2] * oa * (1 - al)) / na;
+    paint[q + 3] = na * 255;
+  }
+  function paintAt(tx){
+    var B = BR[brushIdx], c = PALETTE[colorIdx].c;
+    var i0 = Math.max(0, Math.floor(tx - B.w / 2)), i1 = Math.min(L - 1, Math.ceil(tx + B.w / 2));
+    for (var i = i0; i <= i1; i++){
+      if (Math.abs((i + .5) - tx) > B.w / 2) continue;
+      if (B.mode === 'solid'){
+        for (var a = 0; a < A; a++) compositeCol(i, a, c[0], c[1], c[2], .97);
+      } else if (B.mode === 'sponge'){
+        for (var a2 = 0; a2 < A; a2++) if (Math.random() < .07) compositeCol(i, a2, c[0], c[1], c[2], .92);
+      } else if (B.mode === 'dry'){
+        var streak = hash(i, 5) > .38 ? .8 : .12;
+        for (var a3 = 0; a3 < A; a3++) compositeCol(i, a3, c[0], c[1], c[2], streak * (.55 + .45 * hash(i, a3 + 9)) * .22);
+      } else {
+        for (var a4 = 0; a4 < A; a4++){ var q = (i * A + a4) * 4; paint[q + 3] = paint[q + 3] * .82; }
+      }
+    }
+  }
+  function applyHeld(){
+    if (!holding || !tip) return;
+    var tx = tip.x - PX0, d = Math.abs(tip.y - AXY), side = tip.y < AXY ? -1 : 1;
+    var xi = clamp(tx | 0, 0, L - 1);
+    if (state === 'turn'){
+      var T = TOOLS[toolIdx], want = Math.max(MINR, d);
+      if (!toolActive){ toolActive = true; toolX = tx; toolD = Math.max(want, prof[xi] + 3); jam = 0; lastTipX = toolX; }
+      if (want > toolD + 1) jam = 0;              /* lifting the tool frees a stalled one */
+      if (jam > 0){ jam--; return; }              /* stalled: the tool does not move and does not cut */
+      var prevX = toolX;
+      if (want > toolD) toolD = Math.min(want, toolD + 10);
+      else toolD = Math.max(want, toolD - (T.bite || 3) * (loadS > 1 ? 1 / loadS : 1));
+      /* the harder the wood fights back, the slower the tool can travel forward */
+      var maxLat = 8 / (loadS > 1 ? loadS * loadS : 1);
+      toolX += clamp(tx - toolX, -maxLat, maxLat);
+      var hw = T.hw, steps = Math.max(1, Math.ceil(Math.abs(toolX - prevX) / Math.max(1, hw * .5)));
+      for (var s = 1; s <= steps; s++) cutAt(prevX + (toolX - prevX) * s / steps, toolD, side, Math.abs(toolX - prevX));
+      lastTipX = toolX;
+    } else if (state === 'paint'){
+      var from = lastTipX === null ? tx : lastTipX;
+      if (d <= prof[xi] + 14){
+        var bw = Math.max(1.5, BR[brushIdx].w * .5), st = Math.max(1, Math.ceil(Math.abs(tx - from) / bw));
+        for (var s2 = 1; s2 <= st; s2++) paintAt(from + (tx - from) * s2 / st);
+      }
+      lastTipX = tx;
+    }
+  }
+
+  /* ---------- input ---------- */
+  var anchorFy = 0, anchorD = 0, touchMode = false;
+  function setTip(e, down){
+    var rc = cv.getBoundingClientRect(), sc = SW / rc.width;
+    var fx = (e.clientX - rc.left) * sc, fy = (e.clientY - rc.top) * sc;
+    touchMode = e.pointerType !== 'mouse';
+    if (!touchMode){ finger = null; tip = { x: fx, y: fy }; return; }
+    /* Touch: the tool lands just above the surface under your finger. Drag down to push in, up to back off. */
+    var xi = clamp((fx - PX0) | 0, 0, L - 1);
+    finger = { x: fx, y: fy };
+    if (state === 'paint'){ tip = { x: fx, y: AXY - prof[xi] - 3 }; return; }
+    if (down){ anchorFy = fy; anchorD = prof[xi] + 3; }
+    tip = { x: fx, y: AXY - clamp(anchorD - (fy - anchorFy), MINR, R0 + 30) };
+  }
+  cv.addEventListener('pointerdown', function(e){
+    if (state !== 'turn' && state !== 'paint') return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    snapshot(); setTip(e, true); holding = true; lastTipX = null;
+  });
+  cv.addEventListener('pointermove', function(e){ if (e.pointerType === 'mouse' || holding) setTip(e, false); });
+  function endHold(e){ holding = false; toolActive = false; jam = 0; lastTipX = null; if (e && e.pointerType !== 'mouse'){ tip = null; finger = null; } }
+  cv.addEventListener('pointerup', endHold);
+  cv.addEventListener('pointercancel', endHold);
+  cv.addEventListener('pointerleave', function(){ if (!holding){ tip = null; finger = null; } });
+
+  /* ---------- overlays ---------- */
+  function rgbs(c, a){ return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a === undefined ? 1 : a) + ')'; }
+  function drawTool(x, y){
+    ctx.save(); ctx.translate(x, y); ctx.lineCap = 'round';
+    if (state === 'paint'){
+      var B = BR[brushIdx], c = PALETTE[colorIdx].c, bw = clamp(B.w * .45, 3, 16);
+      ctx.strokeStyle = B.mode === 'erase' ? '#cfc7b8' : rgbs(c); ctx.lineWidth = bw;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(7, -18); ctx.stroke();
+      ctx.strokeStyle = '#b9c0c4'; ctx.lineWidth = bw * .8;
+      ctx.beginPath(); ctx.moveTo(7, -18); ctx.lineTo(13, -32); ctx.stroke();
+      ctx.strokeStyle = '#6b4a2e'; ctx.lineWidth = bw * .65;
+      ctx.beginPath(); ctx.moveTo(13, -32); ctx.lineTo(40, -100); ctx.stroke();
+    } else if (TOOLS[toolIdx].id === 'sand'){
+      ctx.fillStyle = '#b8a98c'; ctx.fillRect(-16, -3, 32, 6);
+      ctx.fillStyle = '#e3d9c3'; ctx.fillRect(-16, -12, 32, 9);
+    } else {
+      var w = TOOLS[toolIdx].id === 'scraper' ? 9 : TOOLS[toolIdx].id === 'parting' ? 2.5 : 5;
+      ctx.strokeStyle = '#d8dee1'; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(14, -34); ctx.stroke();
+      ctx.strokeStyle = '#6b4a2e'; ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.moveTo(14, -34); ctx.lineTo(44, -108); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function draw(now){
+    computeDisp();
+    renderPiece(pimg, Wp, Hp, K, disp, slope, rough, paint, spin);
+    pctx.putImageData(pimg, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+    ctx.setTransform(K, 0, 0, K, 0, 0);
+    ctx.fillStyle = 'rgba(0,0,0,.30)';
+    for (var i = 0; i < L; i += 2) ctx.fillRect(PX0 + i, BENCH - 1, 2, 1 + prof[i] * .05);
+    ctx.drawImage(pcv, PX0, AXY - R0 - 3, Wp / K, Hp / K);
+
+    var judging = state === 'judging', done = state === 'result';
+    var sweep = judging ? Math.min(1, (now - judgeStart) / 3200) * L : done ? L : 0;
+
+    if ((showTemplate && state === 'turn') || judging || done){
+      ctx.lineWidth = 1.6; ctx.strokeStyle = judging || done ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.7)';
+      ctx.setLineDash(judging || done ? [] : [5, 4]);
+      for (var sd = -1; sd <= 1; sd += 2){
+        ctx.beginPath();
+        for (var x = 0; x < L; x += 2){ var yy = AXY + sd * tprof[x]; if (x === 0) ctx.moveTo(PX0 + x, yy); else ctx.lineTo(PX0 + x, yy); }
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    if (judging || done){
+      for (var j = 0; j < sweep; j++){
+        var df = prof[j] - tprof[j];
+        if (Math.abs(df) < 1.8) continue;
+        ctx.fillStyle = df > 0 ? 'rgba(90,160,230,.75)' : 'rgba(217,83,63,.8)';
+        var hi = Math.max(prof[j], tprof[j]), lo = Math.min(prof[j], tprof[j]);
+        ctx.fillRect(PX0 + j, AXY - hi, 1.3, hi - lo);
+        ctx.fillRect(PX0 + j, AXY + lo, 1.3, hi - lo);
+      }
+    }
+    var wood = [224, 184, 128];
+    if (state === 'paint' || judging || done){
+      for (var c = 0; c < L; c++){
+        var tc = tcol[c];
+        ctx.fillStyle = rgbs(tc >= 0 ? PALETTE[tc].c : wood);
+        ctx.fillRect(PX0 + c, 266, 1.2, 14);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1; ctx.strokeRect(PX0, 266, L, 14);
+    }
+    if ((judging || done) && result){
+      for (var y2 = 0; y2 < sweep; y2++){
+        var cv2 = result.yc[y2];
+        ctx.fillStyle = 'rgb(' + (wood[0] * (1 - cv2) + result.yr[y2] * cv2 | 0) + ',' + (wood[1] * (1 - cv2) + result.yg[y2] * cv2 | 0) + ',' + (wood[2] * (1 - cv2) + result.yb[y2] * cv2 | 0) + ')';
+        ctx.fillRect(PX0 + y2, 290, 1.2, 14);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1; ctx.strokeRect(PX0, 290, L, 14);
+    }
+    if (judging){
+      var sx = PX0 + sweep;
+      var gr = ctx.createLinearGradient(sx - 30, 0, sx, 0);
+      gr.addColorStop(0, 'rgba(242,177,52,0)'); gr.addColorStop(1, 'rgba(242,177,52,.28)');
+      ctx.fillStyle = gr; ctx.fillRect(sx - 30, 30, 30, 230);
+      ctx.fillStyle = '#f2b134'; ctx.fillRect(sx, 30, 1.6, 230);
+    }
+    for (var q = 0; q < particles.length; q++){
+      var p = particles[q], al = Math.max(0, 1 - p.t / p.life);
+      if (p.dust){ ctx.fillStyle = 'rgba(240,225,200,' + (al * .8).toFixed(2) + ')'; ctx.fillRect(p.x, p.y, 1.6, 1.6); }
+      else {
+        ctx.strokeStyle = p.c; ctx.globalAlpha = al; ctx.lineWidth = 1.8;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + Math.cos(p.ang) * p.len, p.y + Math.sin(p.ang) * p.len); ctx.stroke(); ctx.globalAlpha = 1;
+      }
+    }
+    if (tip && (state === 'turn' || state === 'paint')){
+      var tx = tip.x - PX0, xi = clamp(tx | 0, 0, L - 1);
+      if (state === 'turn'){
+        ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(tip.x, AXY - R0 - 8); ctx.lineTo(tip.x, AXY + R0 + 8); ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        var bw2 = BR[brushIdx].w;
+        ctx.fillStyle = rgbs(PALETTE[colorIdx].c, .28);
+        ctx.fillRect(tip.x - bw2 / 2, AXY - R0 - 6, bw2, 2 * R0 + 12);
+      }
+      if (finger){
+        ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(finger.x, finger.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+        ctx.beginPath(); ctx.arc(finger.x, finger.y, 7, 0, 6.2832); ctx.stroke();
+      }
+      var sd2 = tip.y < AXY ? -1 : 1, dCmd = Math.abs(tip.y - AXY);
+      var jit = (loadS * 2.2 + shake * 5) * (state === 'turn' ? 1 : 0);
+      var ax = tip.x, ay = tip.y;
+      if (state === 'turn'){
+        if (toolActive){ ax = PX0 + toolX; ay = AXY + sd2 * toolD; }
+        else ay = AXY + sd2 * Math.max(dCmd, prof[xi]);
+        if (Math.abs(ax - tip.x) + Math.abs(ay - tip.y) > 4){
+          ctx.strokeStyle = 'rgba(242,177,52,.8)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(tip.x, tip.y); ctx.stroke(); ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(tip.x, tip.y, 3, 0, 6.2832); ctx.stroke();
+        }
+      }
+      drawTool(ax + (Math.random() - .5) * jit, ay + (Math.random() - .5) * jit);
+    }
+  }
+
+  /* ---------- readout ---------- */
+  var lastRead = '';
+  function setReadout(){
+    var s, warn = false;
+    if (state === 'turn' && performance.now() < flashUntil){ s = flashMsg; warn = true; }
+    else if (state === 'turn'){
+      if (tip){
+        var tx = tip.x - PX0, i = clamp(tx | 0, 0, L - 1);
+        var yours = 2 * prof[i] * MM, ordered = 2 * tprof[i] * MM, df = yours - ordered;
+        var sur = rough[i] < .15 ? 'smooth' : rough[i] < .5 ? 'fair' : 'rough';
+        s = Math.round((i + .5) * MM) + ' mm along. Yours Ø' + yours.toFixed(0) + ', ordered Ø' + ordered.toFixed(0) + ' mm (' +
+          (Math.abs(df) < 2 ? 'on size' : df > 0 ? df.toFixed(0) + ' too fat' : (-df).toFixed(0) + ' too thin') + '). Surface: ' + sur + (Hd[i] > 1.35 ? '. Dense grain here.' : '.');
+      } else s = TOOLS[toolIdx].note + ' Touch: drag down to push in.';
+    } else if (state === 'paint'){
+      var ci = tip ? clamp((tip.x - PX0) | 0, 0, L - 1) : -1;
+      s = BR[brushIdx].name + ' with ' + PALETTE[colorIdx].n + '.' + (ci >= 0 ? ' Ordered here: ' + (tcol[ci] >= 0 ? PALETTE[tcol[ci]].n : 'bare wood') + '.' : ' The strip under the piece shows the ordered paint.');
+    } else if (state === 'judging' || state === 'result') s = '';
+    else s = '';
+    if (s !== lastRead){ $('readout').textContent = s; lastRead = s; }
+    $('readout').classList.toggle('warn', warn);
+  }
+
+  /* ---------- judging ---------- */
+  var STATUS = ['Turning it over...', 'Running a thumb along the surface...', 'Holding it up to the light...'];
+  var QUOTES = [
+    [14, ['This is a stick with ambitions. I will use it as kindling.', 'Did you start? Be honest.', 'I cannot tell what this was meant to be.']],
+    [34, ['I can see the idea. Barely.', 'A lot of this is not what I ordered.', 'It is a start. A long way from finished.']],
+    [54, ['Recognizable, but rough. I would keep it in a dim room.', 'Getting there. The profile needs work.']],
+    [74, ['That is the piece. A little more care and it is good.', 'Decent. I would pay half.']],
+    [89, ['Nice work. This goes on the mantel.', 'That is good. Really good.']],
+    [100, ['That is exactly it. How did you do that?', 'Perfect. I am telling everyone about you.']]
+  ];
+  function pick(score){
+    for (var i = 0; i < QUOTES.length; i++) if (score <= QUOTES[i][0]){ var q = QUOTES[i][1]; return q[Math.floor(Math.random() * q.length)]; }
+    return '';
+  }
+  function handIn(){
+    if (state !== 'paint') return;
+    result = judgeAll(prof, rough, tprof, tcol, paint);
+    judgeStart = performance.now();
+    setState('judging');
+    $('judging').style.display = 'flex'; $('verdict').style.display = 'none'; $('judgeText').textContent = STATUS[0];
+  }
+  function showVerdict(){
+    setState('result');
+    scores.push(result.score); updateAvg();
+    $('judging').style.display = 'none'; $('verdict').style.display = 'flex';
+    $('quote').innerHTML = '';
+    $('quote').appendChild(document.createTextNode(pick(result.score)));
+    var sp = document.createElement('span'); sp.textContent = OBJECTS[cur].who; $('quote').appendChild(sp);
+    var parts = [['shape', result.shape], ['smooth', result.smooth], ['paint', result.paint]];
+    parts.sort(function(a, b){ return a[1] - b[1]; });
+    var worst = parts[0][0], h;
+    if (result.score >= 92) h = 'Clean profile, smooth surface, paint where it was ordered.';
+    else if (worst === 'shape') h = result.over > result.under ? 'Blue ribbons are wood you left on. Take more off before you finish.' : 'Red ribbons are where you cut too deep. Go lighter near the outline.';
+    else if (worst === 'smooth') h = 'Tool marks are showing. Run sandpaper over the piece before you paint.';
+    else h = 'Compare the two strips under the piece. Paint stopped short or ran past the ordered bands.';
+    $('hint').textContent = h;
+    $('pay').textContent = 'Paid $' + Math.round(result.score / 100 * 40) + ' of $40';
+    $('nextBtn').textContent = round < run.length - 1 ? 'Next order' : 'Close up shop';
+    resultStart = performance.now(); counting = true;
+  }
+  function tickScore(now){
+    var t = Math.min(1, (now - resultStart) / 1100), e = 1 - Math.pow(1 - t, 3);
+    $('score').textContent = Math.round(1 + (result.score - 1) * e) + '%';
+    var set = function(g, v, val){ $(g).style.width = (val * 100 * e) + '%'; $(v).textContent = Math.round(val * 100 * e) + '%'; };
+    set('gShape', 'vShape', result.shape); set('gSmooth', 'vSmooth', result.smooth); set('gPaint', 'vPaint', result.paint);
+    if (t >= 1) counting = false;
+  }
+  function showFinal(){
+    state = 'final';
+    var avg = Math.round(scores.reduce(function(a, b){ return a + b; }, 0) / scores.length);
+    var rank = avg >= 92 ? 'Master turner' : avg >= 80 ? 'Journeyman turner' : avg >= 65 ? 'Apprentice' : avg >= 45 ? 'Hobbyist whittler' : avg >= 25 ? 'Splinter enthusiast' : 'Certified firewood supplier';
+    $('fRank').textContent = rank; $('fAvg').textContent = avg + '%';
+    var ul = $('fList'); ul.innerHTML = '';
+    run.forEach(function(k, i){
+      var o = OBJECTS[k], li = document.createElement('li');
+      var a = document.createElement('span'); a.textContent = o.name + ' for ' + o.who;
+      var b = document.createElement('span'); b.className = 'sc'; b.textContent = scores[i] + '%';
+      var bar = document.createElement('div'); bar.className = 'bar'; var f = document.createElement('i'); f.style.width = scores[i] + '%'; bar.appendChild(f);
+      li.appendChild(a); li.appendChild(b); li.appendChild(bar); ul.appendChild(li);
+    });
+    var best = avg;
+    try { var prev = parseInt(localStorage.getItem('chipgrain-lathe-best') || '0', 10); if (prev > best) best = prev; localStorage.setItem('chipgrain-lathe-best', String(best)); } catch (_) {}
+    $('fBest').textContent = 'Best average on this device: ' + best + '%';
+    $('result').classList.remove('show');
+    $('final').classList.add('show');
+  }
+
+  /* ---------- controls ---------- */
+  function buildControls(){
+    var tg = $('toolGrid');
+    TOOLS.forEach(function(t, i){
+      var b = document.createElement('button'); b.className = 'btn tool'; b.setAttribute('aria-pressed', String(i === toolIdx));
+      b.innerHTML = '<span></span><small></small>'; b.firstChild.textContent = t.name; b.lastChild.textContent = t.sub;
+      b.addEventListener('click', function(){ toolIdx = i; Array.prototype.forEach.call(tg.children, function(o, j){ o.setAttribute('aria-pressed', String(j === i)); }); });
+      tg.appendChild(b);
+    });
+    var tpl = document.createElement('button'); tpl.className = 'btn tool'; tpl.setAttribute('aria-pressed', 'true');
+    tpl.innerHTML = '<span>Outline</span><small>on</small>';
+    tpl.addEventListener('click', function(){ showTemplate = !showTemplate; tpl.setAttribute('aria-pressed', String(showTemplate)); tpl.lastChild.textContent = showTemplate ? 'on' : 'off'; });
+    tg.appendChild(tpl);
+    var bgd = $('brushGrid');
+    BR.forEach(function(t, i){
+      var b = document.createElement('button'); b.className = 'btn tool'; b.setAttribute('aria-pressed', String(i === brushIdx));
+      b.innerHTML = '<span></span><small></small>'; b.firstChild.textContent = t.name; b.lastChild.textContent = t.sub;
+      b.addEventListener('click', function(){ brushIdx = i; Array.prototype.forEach.call(bgd.children, function(o, j){ o.setAttribute('aria-pressed', String(j === i)); }); });
+      bgd.appendChild(b);
+    });
+    var sg = $('swatchGrid');
+    PALETTE.forEach(function(p, i){
+      var b = document.createElement('button'); b.className = 'swatch'; b.style.background = 'rgb(' + p.c.join(',') + ')';
+      b.setAttribute('aria-label', p.n); b.title = p.n; b.setAttribute('aria-pressed', String(i === colorIdx));
+      b.addEventListener('click', function(){ colorIdx = i; Array.prototype.forEach.call(sg.children, function(o, j){ o.setAttribute('aria-pressed', String(j === i)); }); });
+      sg.appendChild(b);
+    });
+  }
+  function newRun(){ run = shuffle(Object.keys(OBJECTS)).slice(0, 5); round = 0; scores = []; loadOrder(); }
+  $('startBtn').addEventListener('click', function(){ $('intro').classList.remove('show'); newRun(); });
+  $('againBtn').addEventListener('click', function(){ $('final').classList.remove('show'); newRun(); });
+  $('nextBtn').addEventListener('click', function(){ if (round < run.length - 1){ round++; loadOrder(); } else showFinal(); });
+  $('toPaint').addEventListener('click', function(){ if (state === 'turn') setState('paint'); });
+  $('toTurn').addEventListener('click', function(){ if (state === 'paint') setState('turn'); });
+  /* Go back a stage. Leaving the inspection throws that score away and the piece stays as you left it. */
+  function goBack(to){
+    if (state === 'result' && result){ scores.pop(); updateAvg(); }
+    if (state === 'judging' || state === 'result'){ counting = false; result = null; setState('paint'); }
+    if (to === 'turn' && state === 'paint') setState('turn');
+    else if (to === 'paint' && state === 'turn') setState('paint');
+  }
+  $('ph1').addEventListener('click', function(){ if (state === 'paint' || state === 'judging' || state === 'result') goBack('turn'); });
+  $('ph2').addEventListener('click', function(){ if (state === 'turn' || state === 'judging' || state === 'result') goBack('paint'); });
+  $('reopenBtn').addEventListener('click', function(){ goBack('paint'); });
+  $('handBtn').addEventListener('click', handIn);
+  $('resetBtn').addEventListener('click', function(){ if (state === 'turn') resetBlank(); });
+  $('undoT').addEventListener('click', function(){ var h = histT.pop(); if (h){ prof.set(h.p); rough.set(h.r); } });
+  $('undoP').addEventListener('click', function(){ var h = histP.pop(); if (h) paint.set(h); });
+
+  /* ---------- loop ---------- */
+  var lastT = performance.now();
+  function frame(now){
+    var dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
+    var spinTarget = SPIN * (1 - .65 * Math.min(1, loadS));
+    spinRate += (spinTarget - spinRate) * Math.min(1, dt * 8);
+    spin = (spin + dt * spinRate) % 1;
+    if (catchCool > 0) catchCool--;
+    shake = Math.max(0, shake - dt * 2.5);
+    if (state === 'judging'){
+      var t = (now - judgeStart) / 3200;
+      $('judgeText').textContent = STATUS[Math.min(2, Math.floor(t * 3))];
+      if (t >= 1) showVerdict();
+    }
+    if (counting) tickScore(now);
+    frameLoad = 0;
+    applyHeld();
+    loadS += (frameLoad - loadS) * .3;
+    if (loadS < .01) loadS = 0;
+    var lf = $('loadFill'); lf.style.width = Math.min(100, loadS * 70) + '%'; lf.style.background = loadS > 1 ? 'var(--red)' : 'var(--accent)';
+    if (loadS > .5 && now - lastBuzz > 90){ lastBuzz = now; try { if (navigator.vibrate) navigator.vibrate(Math.min(30, 6 + loadS * 14)); } catch (_) {} }
+    for (var i = particles.length - 1; i >= 0; i--){
+      var p = particles[i]; p.t += dt;
+      if (p.t >= p.life){ particles.splice(i, 1); continue; }
+      p.vy += 320 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.ang += dt * 6;
+    }
+    if (pimg) draw(now);
+    if (state === 'turn' || state === 'paint') setReadout();
+    requestAnimationFrame(frame);
+  }
+
+  buildControls();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe($('stage')); else window.addEventListener('resize', resize);
+  run = shuffle(Object.keys(OBJECTS)).slice(0, 5);
+  loadOrder();
+  state = 'intro';
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
