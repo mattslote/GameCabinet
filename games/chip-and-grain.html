@@ -356,6 +356,9 @@ function judgeAll(prof, rough, tprof, tcol, paint){
     { id:'sand',    name:'Sandpaper', sub:'smooths',    hw:16,
       note:'Sandpaper: smooths tool marks and rounds high spots. Run it over the piece before painting.' }
   ];
+  /* Real wood takes many passes. Everything the lathe removes per frame is scaled down by this factor. */
+  var CUT_SCALE = .35;
+  TOOLS.forEach(function(t){ if (t.bite){ t.bite *= CUT_SCALE; t.cap *= CUT_SCALE; t.rg *= .5; } });
   var BR = [
     { id:'liner',  name:'Liner',   sub:'2 mm',     w:3.2, mode:'solid' },
     { id:'round',  name:'Round',   sub:'6 mm',     w:9,   mode:'solid' },
@@ -637,13 +640,13 @@ function judgeAll(prof, rough, tprof, tcol, paint){
       var cc = tmpCut[n] * scale;
       if (cc < .001) continue;
       prof[i] -= cc; cutTot += cc;
-      if (T.polish && cc < 1) rough[i] = Math.max(.02, rough[i] * .88);
-      else rough[i] = Math.min(1.6, rough[i] + T.rg * .5 + (loadS > .9 ? .12 : 0));
+      if (T.polish && cc < T.bite * .45) rough[i] = Math.max(.02, rough[i] * .88);
+      else rough[i] = Math.min(1.6, rough[i] + T.rg * .5 + (loadS > .9 ? .05 : 0));
     }
     frameLoad = Math.max(frameLoad, load);
-    if (cutTot > .6) spawnChips(tx, side, Math.min(3, 1 + Math.floor(cutTot / 8)), 'rgb(226,184,126)', false);
+    if (cutTot > .6 * CUT_SCALE) spawnChips(tx, side, Math.min(3, 1 + Math.floor(cutTot / (8 * CUT_SCALE))), 'rgb(226,184,126)', false);
     if (catchCool <= 0){
-      var stall = (JAM[T.id] && load > JAM[T.id] && Math.random() < .08) || (T.lateral && cutTot > .5 && dxFrame > T.lateral && Math.random() < .35);
+      var stall = (JAM[T.id] && load > JAM[T.id] && Math.random() < .08) || (T.lateral && cutTot > .5 * CUT_SCALE && dxFrame > T.lateral && Math.random() < .35);
       if (stall) doStall(tx, side, T);
     }
   }
@@ -685,7 +688,7 @@ function judgeAll(prof, rough, tprof, tcol, paint){
       if (want > toolD) toolD = Math.min(want, toolD + 10);
       else toolD = Math.max(want, toolD - (T.bite || 3) * (loadS > 1 ? 1 / loadS : 1));
       /* the harder the wood fights back, the slower the tool can travel forward */
-      var maxLat = 8 / (loadS > 1 ? loadS * loadS : 1);
+      var maxLat = 5 / (loadS > 1 ? loadS * loadS : 1);
       toolX += clamp(tx - toolX, -maxLat, maxLat);
       var hw = T.hw, steps = Math.max(1, Math.ceil(Math.abs(toolX - prevX) / Math.max(1, hw * .5)));
       for (var s = 1; s <= steps; s++) cutAt(prevX + (toolX - prevX) * s / steps, toolD, side, Math.abs(toolX - prevX));
@@ -989,7 +992,7 @@ function judgeAll(prof, rough, tprof, tcol, paint){
   var lastT = performance.now();
   function frame(now){
     var dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
-    var spinTarget = SPIN * (1 - .65 * Math.min(1, loadS));
+    var spinTarget = SPIN * (1 - .85 * Math.min(1, loadS));
     spinRate += (spinTarget - spinRate) * Math.min(1, dt * 8);
     spin = (spin + dt * spinRate) % 1;
     if (catchCool > 0) catchCool--;
