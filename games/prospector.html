@@ -317,7 +317,7 @@ function netTick(){
   const now=Date.now();
   NET.out=NET.out.filter(o=>now-o.ts<800);
   if(NET.out.length&&now-NET.lastNew<800){try{NET.room.emit('ev',{f:NET.id,ops:NET.out});}catch(e){}}
-  pushPresence(false);
+  NET.hb=(NET.hb||0)+1;pushPresence(NET.coopMode&&NET.hb%8===0);
 }
 function myPresence(){
   const p={id:NET.id,name:NET.name,pick:NET.pick,jt:NET.jt,ph:NET.started?'play':'lobby'};
@@ -333,12 +333,39 @@ function pushPresence(force){
   const p=myPresence(),s=JSON.stringify(p);if(!force&&s===NET.lastP)return;NET.lastP=s;
   try{NET.room.presence(p);}catch(e){}
 }
-const roster=()=>Object.values(Object.assign({},NET.peers,NET.on?{[NET.id]:myPresence()}:{})).filter(s=>s.ph==='lobby'||s.ph==='play').sort((a,b)=>(a.jt-b.jt)||(a.id<b.id?-1:1)).slice(0,8);
+const roster=()=>NET.coopMode?coopRoster():Object.values(Object.assign({},NET.peers,NET.on?{[NET.id]:myPresence()}:{})).filter(s=>s.ph==='lobby'||s.ph==='play').sort((a,b)=>(a.jt-b.jt)||(a.id<b.id?-1:1)).slice(0,8);
+function coopRoster(){
+  const C=window.Coop;
+  return C.players.slice().sort((a,b)=>a.id-b.id).slice(0,8).map((p,i)=>{
+    const id='p'+p.id,st=id===NET.id?myPresence():(NET.peers[id]||{});
+    return Object.assign({},st,{id,name:p.name,pick:st.pick!=null?st.pick:(i%2),jt:i,ph:'lobby'});
+  });
+}
+function makeCoopRoom(){
+  const C=window.Coop;let evcb=null,pcb=null;const peers={};
+  C.onmessage=(from,d)=>{
+    if(!d)return;
+    if(d.t==='p'){peers['p'+from]=d.s;if(pcb)pcb(Object.values(peers).map(x=>({state:x})));}
+    else if(d.t==='e'){if(evcb)evcb(d.d);}
+  };
+  C.onplayers=()=>{if(state==='lobby')renderLobby();};
+  return {on:(k,f)=>{evcb=f;},onPeers:f=>{pcb=f;},emit:(k,d)=>{C.send({t:'e',d});},presence:st=>{C.send({t:'p',s:st});},leave:()=>{}};
+}
+function startCoop(){
+  const C=window.Coop;
+  NET.coopMode=true;NET.id='p'+C.id;NET.name=C.name(C.id);
+  const idx=Math.max(0,C.players.slice().sort((a,b)=>a.id-b.id).findIndex(p=>p.id===C.id));
+  NET.pick=idx%2;NET.code='NEARBY';
+  NET.room=makeCoopRoom();NET.room.on('ev',onEv);NET.room.onPeers(onPeers);NET.on=true;NET.go=null;NET.peers={};NET.started=false;
+  NET.jt=Date.now();pushPresence(true);
+  clearInterval(NET.timer);NET.timer=setInterval(netTick,120);
+  elTitle.style.display='none';state='lobby';renderLobby();elLobby.style.display='flex';
+}
 function onPeers(p){
   NET.peers=normPeers(p);
   if(NET.started)return;
   const r=roster(),host=r[0];
-  if(host&&host.go&&state==='lobby')startMP(host.go);
+  if(host&&host.go&&host.go.seed!==NET.lastSeed&&state==='lobby')startMP(host.go);
   if(state==='lobby')renderLobby();
 }
 function onEv(d){
@@ -397,22 +424,23 @@ function hostStart(){
   const r=roster();if(!r.length||r[0].id!==NET.id)return;
   const c=[0,0];r.forEach(x=>c[x.pick?1:0]++);
   const coop=Math.abs(c[0]-c[1])>2,teams={};r.forEach(x=>teams[x.id]=coop?0:(x.pick?1:0));
-  NET.go={seed:(Math.random()*1e9)|0,startAt:Date.now()+2500,order:r.map(x=>x.id),teams,coop};
+  NET.go={seed:(Math.random()*1e9)|0,delay:2500,order:r.map(x=>x.id),teams,coop};
   pushPresence(true);startMP(NET.go);
 }
-function startMP(go){
+function startMP(go0){
   if(NET.started)return;
+  const go=Object.assign({},go0,{startAt:Date.now()+(go0.delay||2500)});
   if(!go.order.includes(NET.id)){NET.err='A game is already running. Wait for the next one.';renderLobby();return;}
-  NET.started=true;NET.order=go.order;NET.tm=go.teams;NET.coop=!!go.coop;NET.go=NET.go||null;NET.goRecv=go;
+  NET.started=true;NET.lastSeed=go.seed;NET.order=go.order;NET.tm=go.teams;NET.coop=!!go.coop;NET.go=go;NET.goRecv=go;
   resetGame(go.seed,go);
   const pre=NET.pre;NET.pre=[];for(const op of pre){if(NET.seenOps.has(op.o))continue;NET.seenOps.add(op.o);applyOp(op);}
-  if(!NET.go)NET.go={startAt:go.startAt};
   pushPresence(true);
 }
 function renderLobby(){
   const joined=NET.on;
   document.getElementById('lobjoin').style.display=joined?'none':'flex';
-  const msg=document.getElementById('lobmsg');msg.textContent=NET.err||(joined?`Room ${NET.code}. Share this code with your crew.`:'Pick a room code and a name. Everyone who joins the same code plays together (up to 8).');
+  document.getElementById('lobback').style.display=NET.coopMode?'none':'inline-block';
+  const msg=document.getElementById('lobmsg');msg.textContent=NET.err||(joined?(NET.coopMode?'Choose Red or Blue. The host starts the dig when everyone is ready.':`Room ${NET.code}. Share this code with your crew.`):'Pick a room code and a name. Everyone who joins the same code plays together (up to 8).');
   const box=document.getElementById('lobroster'),ru=document.getElementById('lobrule'),st=document.getElementById('lobstart');
   box.innerHTML='';
   if(!joined){ru.textContent='';st.style.display='none';return;}
@@ -431,6 +459,7 @@ function renderLobby(){
   ru.textContent=(coop?`Teams are out of balance (${c[0]} vs ${c[1]}), so everyone works together as one crew.`:`Red ${c[0]} · Blue ${c[1]}. ${c[0]&&c[1]?'Racing for the most gold.':'Pick a side, or stay lopsided and cooperate.'} Teams more than 2 apart merge into one crew.`)+(extra>0?` (${extra} waiting: room is full)`:'');
   st.style.display=(r.length&&r[0].id===NET.id)?'inline-block':'none';
 }
+document.addEventListener('DOMContentLoaded',()=>{});
 document.getElementById('lobgo').onclick=async()=>{
   A();sfx.click();const code=(document.getElementById('lobcode').value||'GOLD').toUpperCase().replace(/[^A-Z0-9]/g,'')||'GOLD';
   document.getElementById('lobmsg').textContent='Connecting...';
@@ -814,7 +843,8 @@ function showResults(){
 }
 document.getElementById('shopfinish').onclick=()=>{A();sfx.click();elShop.style.display='none';state='play';endGame('done');};
 document.getElementById('play').onclick=()=>{A();sfx.click();netLeave();resetGame();};
-if(!MPOK())document.getElementById('mp').style.display='none';
+if(!MPOK()||(window.Coop&&window.Coop.active))document.getElementById('mp').style.display='none';
+if(window.Coop&&window.Coop.active)setTimeout(startCoop,0);
 document.getElementById('mp').onclick=()=>{A();sfx.click();elTitle.style.display='none';state='lobby';renderLobby();elLobby.style.display='flex';};
 
 /* ================= DRAW ================= */
