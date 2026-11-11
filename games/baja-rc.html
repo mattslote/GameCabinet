@@ -958,6 +958,7 @@ function resize() {
   Wc = cv.width; Hc = cv.height;
   vs = Math.min(r.width / 1000, r.height / 460) * dpr;
   if (r.width > r.height) vs /= 1.5;   /* landscape: show 50% more of the road */
+  else vs = .44 * dpr;                 /* portrait: the truck is the same size on screen as in landscape on a phone (about 0.44 css px per world px) */
 }
 if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
 window.addEventListener('resize', resize);
