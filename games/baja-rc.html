@@ -65,9 +65,10 @@ body {
   /* The Dynamic Island and the native Games button live in the top strip, so keep the HUD below it and park the chips inside it. */
   body { padding-top: max(52px, env(safe-area-inset-top, 0px)); }
   #end { position: fixed; top: 12px; right: 12px; min-height: 34px; }
-  :root { --ph: clamp(104px, 14vh, 140px); }
-  .pedal { font-size: 44px; border-radius: 22px; }
-  .pedal small { font-size: 12px; }
+  :root { --ph: clamp(72px, 10vh, 92px); }
+  .pedal { font-size: 34px; border-radius: 16px; border-width: 2px; gap: 0; }
+  .pedal small { font-size: 10px; }
+  .repair { min-height: 38px; padding: 0 14px; font-size: 20px; border-radius: 10px; bottom: calc(var(--ph) + 16px); }
   .pedal.l { width: calc(40% - 18px); }
   .pedal.r { width: calc(56% - 18px); }
   .rot { display: none !important; }
