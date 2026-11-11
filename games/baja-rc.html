@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Baja RC</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,6 +20,7 @@
   --warn: #ffb020;
   --bad: #f0452f;
   --display: 'Teko', 'Arial Narrow', Impact, sans-serif;
+  --ph: clamp(64px, 24vh, 118px);
   --body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: dark;
 }
@@ -54,7 +56,22 @@ body {
 .chips { position: absolute; top: 8px; right: 8px; display: flex; gap: 8px; z-index: 5; }
 .chips .chip { min-height: 32px; padding: 0 10px; font-size: 11px; background: rgba(15,10,7,.55); border-color: rgba(255,255,255,.45); }
 @media (orientation: landscape) and (max-width: 780px) and (max-height: 520px) { .hl, .hr, .hud { gap: 8px; } .stat + .stat { padding-left: 8px; } .val { font-size: 24px; } .lab, .sub { font-size: 9px; letter-spacing: .05em; } .hgap { flex-basis: 84px; } }
-@media (orientation: portrait) { .hl, .hr { display: contents; } .hgap { display: none; } }
+@media (orientation: portrait) {
+  .hl, .hr { display: contents; } .hgap { display: none; }
+  .hud { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; align-items: end; gap: 8px 10px; }
+  .stat + .stat { padding-left: 0; border-left: 0; }
+  .stat.cash { grid-column: span 2; }
+  .val { font-size: 32px; } .lab, .sub { font-size: 9px; letter-spacing: .06em; }
+  /* The Dynamic Island and the native Games button live in the top strip, so keep the HUD below it and park the chips inside it. */
+  body { padding-top: max(56px, env(safe-area-inset-top, 0px)); }
+  #end { position: fixed; top: 12px; right: 12px; min-height: 34px; }
+  :root { --ph: clamp(120px, 17vh, 170px); }
+  .pedal { font-size: 44px; border-radius: 22px; }
+  .pedal small { font-size: 12px; }
+  .pedal.l { width: calc(40% - 18px); }
+  .pedal.r { width: calc(56% - 18px); }
+  .rot { display: none !important; }
+}
 @media (orientation: landscape) and (min-height: 521px) { .hgap { display: none; } .hl { flex: 0 1 auto; } .hr { flex: 1 1 auto; } .hud { padding-left: 92px; } }
 .chip {
   min-height: 40px; padding: 0 12px;
@@ -76,7 +93,7 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-
 .hp .parts .worse { color: #ff7a5c; }
 .pedal {
   position: absolute; bottom: 12px;
-  width: clamp(96px, 24%, 190px); height: clamp(64px, 24vh, 118px);
+  width: clamp(96px, 24%, 190px); height: var(--ph);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   font-family: var(--display); font-weight: 700; font-size: 30px; letter-spacing: .06em; text-transform: uppercase;
   color: #fff; background: rgba(15,10,7,.34); border: 3px solid rgba(255,255,255,.7); border-radius: 18px;
@@ -98,7 +115,7 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-
 .upg .u[disabled] { opacity: .45; cursor: default; } .upg .u[disabled] i { color: #bbb; }
 .upg .done { width: 100%; margin-top: 4px; padding: 9px; border: 0; border-radius: 9px; background: #ff6b1a; color: #1a0f08; font: 700 14px inherit; cursor: pointer; }
 .repair {
-  position: absolute; right: 12px; bottom: calc(clamp(64px, 24vh, 118px) + 22px);
+  position: absolute; right: 12px; bottom: calc(var(--ph) + 22px);
   min-height: 46px; padding: 0 16px;
   font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: .06em; text-transform: uppercase;
   color: var(--plate); background: var(--good); border: 0; border-radius: 12px; cursor: pointer; touch-action: manipulation;
@@ -1663,13 +1680,13 @@ function drawScene(now) {
   }
   c.globalAlpha = 1;
   if (g.trick && st === 'play') {
-    c.font = '700 ' + 34 * dpr + 'px ' + DISPLAY; c.lineWidth = 6 * dpr; c.strokeStyle = 'rgba(15,10,7,.9)';
+    c.font = '700 ' + 34 * dpr + 'px ' + DISPLAY; var tw = c.measureText(g.trick.toUpperCase()).width; if (tw > Wc * .92) c.font = '700 ' + 34 * dpr * Wc * .92 / tw + 'px ' + DISPLAY; c.lineWidth = 6 * dpr; c.strokeStyle = 'rgba(15,10,7,.9)';
     c.strokeText(g.trick.toUpperCase(), Wc / 2, Hc * .44); c.fillStyle = '#fff'; c.fillText(g.trick.toUpperCase(), Wc / 2, Hc * .44);
   }
   if (banner) {
     var ba = Math.min(1, banner.t / .3, (3 - banner.t) / .6);
     c.globalAlpha = Math.max(0, ba);
-    c.font = '700 ' + 76 * dpr + 'px ' + DISPLAY; c.lineWidth = 9 * dpr; c.strokeStyle = 'rgba(15,10,7,.9)';
+    c.font = '700 ' + 76 * dpr + 'px ' + DISPLAY; var bw = c.measureText(banner.text.toUpperCase()).width, bs = Math.min(76 * dpr, 76 * dpr * Wc * .9 / Math.max(1, bw)); c.font = '700 ' + bs + 'px ' + DISPLAY; c.lineWidth = 9 * dpr * bs / (76 * dpr); c.strokeStyle = 'rgba(15,10,7,.9)';
     c.strokeText(banner.text.toUpperCase(), Wc / 2, Hc * .34); c.fillStyle = '#fff'; c.fillText(banner.text.toUpperCase(), Wc / 2, Hc * .34);
     c.globalAlpha = 1;
   }
