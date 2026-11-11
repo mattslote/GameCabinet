@@ -957,6 +957,7 @@ function resize() {
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   Wc = cv.width; Hc = cv.height;
   vs = Math.min(r.width / 1000, r.height / 460) * dpr;
+  if (r.width > r.height) vs /= 1.5;   /* landscape: show 50% more of the road */
 }
 if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
 window.addEventListener('resize', resize);
