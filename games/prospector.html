@@ -803,6 +803,19 @@ function bank(){
   if(heal){m.hp=HEART*4;addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-30,'Rested','#9be7a8',13);}
   if(rest)m.stock=m.ladCap;
 }
+let looseT=0;
+function dropLoose(){
+  for(let y=Math.min(ROWS-5,m.cy+8);y>=Math.max(SURF,m.cy-8);y--)for(let x=Math.max(0,m.cx-10);x<=Math.min(COLS-1,m.cx+10);x++){
+    const t=grid[idx(x,y)];
+    if(t<3||t>5||solid(x,y+1))continue;
+    grid[idx(x,y)]=0;sendOp({k:'c',i:idx(x,y),v:0});
+    let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!rail[idx(x,ly)])ly++;
+    const li=idx(x,ly);
+    setLoot(li,Math.min(255,loot[li]+(t===3?1:t===5?5:0)),Math.min(255,lootPy[li]+(t===4?1:0)));
+    if(seen[li]<1)seen[li]=1;
+    burst((OX-camXr)+x*CS+8,y*CS-camY+8,5,['#ffd23a','#fff2a0'],50,20);
+  }
+}
 function updateSeen(){
   for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=5){const t=grid[i];if(t>=3&&t<=6||t===8)seen[i]=2;}}
   const R=7;
@@ -854,6 +867,7 @@ function update(dt){
     }
     if(state==='play'&&!m.falling&&m.cy===SURF-1&&m.cx>=1&&m.cx<=9)bank();
     m.deepest=Math.max(m.deepest,m.cy-SURF+1);
+    if((looseT-=dt)<=0){looseT=.35;dropLoose();}
     updateSeen();
   }
   if(state==='ko'){koT-=dt;if(koT<=0)respawn();}
