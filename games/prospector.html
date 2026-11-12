@@ -517,7 +517,7 @@ function act(id){
   if(id==='rail'||id==='elev'){
     const k=id==='rail'?'rails':'elev';
     if(m[k]<=0&&m.tool!==id){hint('None left. Buy more at the shop.');return;}
-    m.tool=m.tool===id?null:id;sfx.click();
+    m.tool=m.tool===id?null:id;m.toolT=time;sfx.click();
     hint(m.tool?'Walk or point the pad where it should go, then tap PLACE.':'Tool put away.',3);return;}
   if(id==='bank'){if(canTrade())sellAll();return;}
   if(id==='cart')return doCart();
@@ -1167,9 +1167,6 @@ function drawHUD(c){
       else{c.strokeStyle='rgba(200,230,255,.9)';c.lineWidth=2;c.beginPath();c.moveTo(p.x+3,p.y);c.lineTo(p.x+3,p.y+CS);c.moveTo(p.x+CS-3,p.y);c.lineTo(p.x+CS-3,p.y+CS);for(let r=3;r<CS;r+=5){c.moveTo(p.x+3,p.y+r);c.lineTo(p.x+CS-3,p.y+r);}c.stroke();}
     }
     c.strokeStyle=ok?'#ffd23a':'#ff6a5c';c.lineWidth=2;c.strokeRect(p.x+1,p.y+1,CS-2,CS-2);c.restore();
-    const msg=(m.tool==='rail'?'RAIL':'ELEVATOR')+': walk to aim the box, tap PLACE. Tap '+(m.tool==='rail'?'RAIL':'ELEV')+' again to stop.';
-    c.font='800 12px -apple-system,system-ui,sans-serif';c.textAlign='center';const tw=c.measureText(msg).width+24,ty=W<600?122:70;
-    c.fillStyle='rgba(12,8,5,.75)';c.fillRect(W/2-tw/2,ty-13,tw,22);c.fillStyle='#ffd23a';c.fillText(msg,W/2,ty+2);
   }
   // buttons
   for(const bt of btnList()){
