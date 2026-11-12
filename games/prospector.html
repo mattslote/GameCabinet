@@ -258,11 +258,10 @@ cv.addEventListener('pointerdown',e=>{
   if(hit){o.btn=true;ptrs.set(e.pointerId,o);act(hit.id);}
   else if(Math.hypot(p.x-DPAD.x,p.y-DPAD.y)<=DPAD.r+12){o.dpad=true;ptrs.set(e.pointerId,o);}
   else if(Math.hypot(p.x-PAD.x,p.y-PAD.y)<=PAD.r+14){o.pad=true;ptrs.set(e.pointerId,o);}
-  else if(m.tool){o.tl=true;ptrs.set(e.pointerId,o);toolPlace(o);}
   else ptrs.set(e.pointerId,o);
   try{cv.setPointerCapture(e.pointerId);}catch(_){}
 });
-cv.addEventListener('pointermove',e=>{const o=ptrs.get(e.pointerId);if(!o)return;e.preventDefault();const p=pos(e);o.x=p.x;o.y=p.y;if(o.tl)toolPlace(o);});
+cv.addEventListener('pointermove',e=>{const o=ptrs.get(e.pointerId);if(!o)return;e.preventDefault();const p=pos(e);o.x=p.x;o.y=p.y;});
 const rel=e=>ptrs.delete(e.pointerId);
 cv.addEventListener('pointerup',rel);cv.addEventListener('pointercancel',rel);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
@@ -479,6 +478,7 @@ const loaded=()=>carts.some(c=>c.mode==='idle'&&c.team===m.team&&c.g+c.py>0);
 function btnList(){
   const L=[{id:'ladder',x:BTN.x,y:BTN.y,r:BTN.r,l:'LADDER ×'+m.stock}];
   const ids=[];
+  if(m.tool)ids.push(['place',m.tool==='rail'?'PLACE RAIL':'PLACE LIFT']);
   if(m.rails>0||m.tool==='rail')ids.push(['rail','RAIL ×'+m.rails]);
   if(m.elev>0||m.tool==='elev')ids.push(['elev','ELEV ×'+m.elev]);
   if(canTrade())ids.push(['bank','SELL ALL']);
@@ -493,11 +493,12 @@ function btnList(){
 }
 function act(id){
   if(id==='ladder')return doLadder();
+  if(id==='place')return doPlace();
   if(id==='rail'||id==='elev'){
     const k=id==='rail'?'rails':'elev';
     if(m[k]<=0&&m.tool!==id){hint('None left. Buy more at the shop.');return;}
     m.tool=m.tool===id?null:id;sfx.click();
-    hint(m.tool?(id==='rail'?'RAIL tool: tap or drag the mine to place track.':'ELEVATOR tool: tap or drag the mine to place a lift.'):'Tool put away.',3);return;}
+    hint(m.tool?'Walk or point the pad where it should go, then tap PLACE.':'Tool put away.',3);return;}
   if(id==='bank'){if(canTrade())sellAll();return;}
   if(id==='cart')return doCart();
   if(id==='ride')return doRide();
@@ -656,22 +657,23 @@ function sellAll(){
   for(const c of carts)if(c.owner===NET.id&&c.mode==='idle'&&c.g+c.py>0){bankCart(c,false);pushCart(c);}
 }
 const cellAt=(px,py)=>({x:Math.floor((px+camXr-OX)/CS),y:Math.floor((py+camY)/CS)});
-function toolPlace(o){
+function ghostCell(){const d=lastDir||{dx:m.face,dy:0};return {x:m.cx+d.dx,y:m.cy+d.dy};}
+function ghostOK(q){
+  if(!m.tool||!inb(q.x,q.y)||q.y<SURF-1||solid(q.x,q.y))return false;
+  const i=idx(q.x,q.y);return m.tool==='rail'?!rail[i]:!elev[i];
+}
+function doPlace(){
   if(!m.tool||state!=='play')return;
-  const q=cellAt(o.x,o.y);o.cell=q;
-  const key=q.x+','+q.y;if(o.last===key)return;o.last=key;
-  const {x,y}=q;
-  if(!inb(x,y)||y<SURF-1)return;
-  if(Math.hypot(x-m.cx,y-m.cy)>8){hint('Too far. Move closer.',1.4);return;}
-  if(solid(x,y)){hint('Dig that out first.',1.4);return;}
-  const i=idx(x,y);
+  const q=ghostCell();
+  if(!ghostOK(q)){sfx.nope();hint('Nothing to place there. Walk or point toward open space.',1.8);return;}
+  const i=idx(q.x,q.y);
   if(m.tool==='rail'){
-    if(rail[i])return;
-    rail[i]=1;sendOp({k:'r',i});m.rails--;m.laid++;sfx.step();
+    if(m.rails<=0){m.tool=null;return;}
+    rail[i]=1;sendOp({k:'r',i});m.rails--;m.laid++;sfx.ladder();
     if(m.rails<=0){m.tool=null;hint('Out of rails.');}
   }else{
-    if(elev[i])return;
-    setElev(x,y);
+    if(m.elev<=0){m.tool=null;return;}
+    setElev(q.x,q.y);
   }
 }
 function elevUp(){if(m.falling||!elev[idx(m.cx,m.cy)])return false;let y=m.cy;while(y>SURF-1&&elev[idx(m.cx,y-1)])y--;return y<=SURF;}
@@ -1132,8 +1134,14 @@ function drawHUD(c){
   c.textAlign='left';c.font='800 12px -apple-system,system-ui,sans-serif';c.fillStyle='rgba(255,255,255,.8)';
   c.fillText('Depth '+Math.max(0,m.cy-SURF+1)+' m',12,W<600?100:52);
   if(m.tool&&state==='play'){
-    for(const o of ptrs.values())if(o.tl&&o.cell){const p=cellPx(o.cell.x,o.cell.y);c.strokeStyle='#ffd23a';c.lineWidth=2;c.strokeRect(p.x+1,p.y+1,CS-2,CS-2);}
-    const msg=(m.tool==='rail'?'RAIL TOOL':'ELEVATOR TOOL')+': tap or drag to place. Tap the button again to stop.';
+    const q=ghostCell(),ok=ghostOK(q),p=cellPx(q.x,q.y),pu=.55+.35*Math.sin(time*7);
+    c.save();c.globalAlpha=ok?pu:.8;
+    if(ok){
+      if(m.tool==='rail'){c.fillStyle='rgba(125,85,45,.7)';for(let k=0;k<4;k++)c.fillRect(p.x+1+k*4,p.y+CS-4,2,4);c.fillStyle='rgba(220,225,235,.9)';c.fillRect(p.x,p.y+CS-5,CS,1.6);}
+      else{c.strokeStyle='rgba(200,230,255,.9)';c.lineWidth=2;c.beginPath();c.moveTo(p.x+3,p.y);c.lineTo(p.x+3,p.y+CS);c.moveTo(p.x+CS-3,p.y);c.lineTo(p.x+CS-3,p.y+CS);for(let r=3;r<CS;r+=5){c.moveTo(p.x+3,p.y+r);c.lineTo(p.x+CS-3,p.y+r);}c.stroke();}
+    }
+    c.strokeStyle=ok?'#ffd23a':'#ff6a5c';c.lineWidth=2;c.strokeRect(p.x+1,p.y+1,CS-2,CS-2);c.restore();
+    const msg=(m.tool==='rail'?'RAIL':'ELEVATOR')+': walk to aim the box, tap PLACE. Tap '+(m.tool==='rail'?'RAIL':'ELEV')+' again to stop.';
     c.font='800 12px -apple-system,system-ui,sans-serif';c.textAlign='center';const tw=c.measureText(msg).width+24,ty=W<600?122:70;
     c.fillStyle='rgba(12,8,5,.75)';c.fillRect(W/2-tw/2,ty-13,tw,22);c.fillStyle='#ffd23a';c.fillText(msg,W/2,ty+2);
   }
