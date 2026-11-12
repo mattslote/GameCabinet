@@ -614,8 +614,8 @@ const ITEMS=[
   {k:'elev',n:'Elevator ×10',d:'A fast vertical lift. Carts can ride it too. Connect it to the surface and you can sell and shop from beside any elevator or rail.',price:90,q:10},
   {k:'rails',n:'Rails ×10',d:'You can walk on rails and lay them across gaps. Run them to the surface so carts can haul.',price:30,q:10},
   {k:'lamps',n:'Lamps ×2',d:'Hang a lamp to light and map a wide area for good.',price:50,q:2},
-  {k:'cap',n:'Bigger pack +2',d:'Carry more gold at once.',price:()=>60+(m.cap-6)/2*60,q:2,max:30,get:()=>m.cap},
-  {k:'ladCap',n:'Ladder bag +5',d:'Carry and restock more ladders.',price:()=>40+(m.ladCap-10)/5*40,q:5,max:60,get:()=>m.ladCap,fill:true}
+  {k:'cap',n:'Bigger pack +2',d:'Carry more gold at once.',price:200,q:2,max:30,get:()=>m.cap},
+  {k:'ladCap',n:'Ladder bag +5',d:'Carry and restock more ladders.',price:150,q:5,max:60,get:()=>m.ladCap,fill:true}
 ];
 function renderShop(){
   document.getElementById('shopcash').textContent='Cash $'+cashNow()+(NET.started&&!NET.coop?' (team)':NET.started?' (crew)':'');
