@@ -591,7 +591,7 @@ const ITEMS=[
   {k:'carts',n:'Rail cart',d:'Holds 30 gold. Rolls on rails and elevators. Auto-sends when full.',price:100,q:1},
   {k:'elev',n:'Elevator ×10',d:'A fast vertical lift. Carts can ride it too. Connect it to the surface and you can sell and shop from beside any elevator or rail.',price:90,q:10},
   {k:'rails',n:'Rails ×10',d:'You can walk on rails and lay them across gaps. Run them to the surface so carts can haul.',price:30,q:10},
-  {k:'lamps',n:'Lamps ×2',d:'Hang a lamp to light the area, and shake loose any gold it finds.',price:50,q:2},
+  {k:'lamps',n:'Lamps ×2',d:'Hang a lamp to light and map a wide area for good.',price:50,q:2},
   {k:'cap',n:'Bigger pack +2',d:'Carry more gold at once.',price:()=>60+(m.cap-6)/2*60,q:2,max:30,get:()=>m.cap},
   {k:'ladCap',n:'Ladder bag +5',d:'Carry and restock more ladders.',price:()=>40+(m.ladCap-10)/5*40,q:5,max:60,get:()=>m.ladCap,fill:true}
 ];
@@ -803,17 +803,7 @@ function bank(){
   if(heal){m.hp=HEART*4;addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-30,'Rested','#9be7a8',13);}
   if(rest)m.stock=m.ladCap;
 }
-function dropOre(x,y,t){
-  const i=idx(x,y);grid[i]=0;
-  let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!lad[idx(x,ly)]&&!rail[idx(x,ly)])ly++;
-  const li=idx(x,ly);
-  const g=t===3?1:t===5?5:0,p=t===4?1:0;
-  loot[li]=Math.min(255,loot[li]+g);lootPy[li]=Math.min(255,lootPy[li]+p);
-  if(seen[li]<1)seen[li]=1;
-  if(Math.random()<.5)burst((OX-camXr)+x*CS+8,y*CS-camY+8,4,['#ffd23a','#fff2a0'],50,20);
-}
 function updateSeen(){
-  for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y)||Math.hypot(dx,dy)>5)continue;const t=grid[idx(x,y)];if(t>=3&&t<=5)dropOre(x,y,t);}
   for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=5){const t=grid[i];if(t>=3&&t<=6||t===8)seen[i]=2;}}
   const R=7;
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
