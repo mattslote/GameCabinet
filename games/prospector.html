@@ -53,8 +53,8 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
       <div><b>5</b><em>LADDERS</em> &mdash; tap LADDER to drop a run toward where you were heading.</div>
       <div><b>6</b><em>FALLS HURT</em> &mdash; 3 cells or more costs hearts. Knocked out? You wake at the shack, your pack stays where you fell, carts stay safe. You can always haul yourself up, slowly.</div>
     </div>
-    <div style="display:flex;gap:14px"><button id="play">Solo</button><button id="mp" class="sec">Multiplayer</button></div>
-    <div class="testing"><b>Still testing</b>Prospector is a work in progress. Future updates may change the mine, prices, rules and saved bests, which can affect your progress.</div>
+    <div style="display:flex;gap:14px"><button id="cont" style="display:none">Continue</button><button id="play">Solo</button><button id="mp" class="sec">Multiplayer</button></div>
+    <div class="testing"><b>Still testing</b>Prospector is a work in progress. Future updates may change the mine, prices, rules and saved bests, which can affect your progress. Solo games autosave on this device and you can Continue later.</div>
   </div>
   <div id="over" class="ov"></div>
   <div id="lobby" class="ov"><h1 style="font-size:34px">Multiplayer</h1><p id="lobmsg" class="note" style="min-height:18px"></p>
@@ -231,7 +231,7 @@ let koT=0,state='title',time=0,left=DAY,camY=0,hurtT=0,shake=0,best=0,flash=0,hi
 let m=null,parts=[],texts=[];
 const ptrs=new Map();let lastHoriz=true,lastDir=null,lastDirT=-9;
 try{best=+localStorage.getItem('prospector_best')||0;}catch(e){}
-function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,g:0,py:0,banked:0,spent:0,elev:0,ride:null,rideT:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
+function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,cap:6,ladCap:10,tool:null,hop:0,g:0,py:0,banked:0,spent:0,elev:0,ride:null,rideT:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
 function resetGame(seed,go){
   gen(seed);m=newMiner();parts=[];texts=[];ptrs.clear();left=DAY;hurtT=0;shake=0;flash=0;hintT=0;lastDir=null;
   camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
@@ -257,17 +257,18 @@ cv.addEventListener('pointerdown',e=>{
   if(hit){o.btn=true;ptrs.set(e.pointerId,o);act(hit.id);}
   else if(Math.hypot(p.x-DPAD.x,p.y-DPAD.y)<=DPAD.r+12){o.dpad=true;ptrs.set(e.pointerId,o);}
   else if(Math.hypot(p.x-PAD.x,p.y-PAD.y)<=PAD.r+14){o.pad=true;ptrs.set(e.pointerId,o);}
+  else if(m.tool){o.tl=true;ptrs.set(e.pointerId,o);toolPlace(o);}
   else ptrs.set(e.pointerId,o);
   try{cv.setPointerCapture(e.pointerId);}catch(_){}
 });
-cv.addEventListener('pointermove',e=>{const o=ptrs.get(e.pointerId);if(!o)return;e.preventDefault();const p=pos(e);o.x=p.x;o.y=p.y;});
+cv.addEventListener('pointermove',e=>{const o=ptrs.get(e.pointerId);if(!o)return;e.preventDefault();const p=pos(e);o.x=p.x;o.y=p.y;if(o.tl)toolPlace(o);});
 const rel=e=>ptrs.delete(e.pointerId);
 cv.addEventListener('pointerup',rel);cv.addEventListener('pointercancel',rel);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 function movePtr(){
   for(const o of ptrs.values())if(o.pad)return o;
-  for(const o of ptrs.values())if(!o.btn&&!o.dpad)return o;
+  for(const o of ptrs.values())if(!o.btn&&!o.dpad&&!o.tl)return o;
   return null;
 }
 let lastDigH=true;
@@ -477,23 +478,26 @@ const loaded=()=>carts.some(c=>c.mode==='idle'&&c.team===m.team&&c.g+c.py>0);
 function btnList(){
   const L=[{id:'ladder',x:BTN.x,y:BTN.y,r:BTN.r,l:'LADDER ×'+m.stock}];
   const ids=[];
-  if(m.rails>0||railMode)ids.push(['rail','RAIL ×'+m.rails]);
-  if(m.elev>0||elevMode)ids.push(['elev','ELEV ×'+m.elev]);
-  if(elevUp())ids.push(['bank','BANK']);
+  if(m.rails>0||m.tool==='rail')ids.push(['rail','RAIL ×'+m.rails]);
+  if(m.elev>0||m.tool==='elev')ids.push(['elev','ELEV ×'+m.elev]);
+  if(canTrade())ids.push(['bank','SELL ALL']);
   if(m.carts>0||cartHere())ids.push(['cart',cartHere()&&cartHere().g+cartHere().py===0?'TAKE':'CART ×'+m.carts]);
   if(m.lamps>0)ids.push(['lamp','LAMP ×'+m.lamps]);
   if(m.ride||cartAny())ids.push(['ride',m.ride?'GET OFF':'RIDE']);
   if(loaded())ids.push(['send','SEND']);
   if(m.py>0)ids.push(['dump','DROP']);
-  if(atShack()||elevUp())ids.push(['shop','SHOP']);
+  if(canTrade())ids.push(['shop','SHOP']);
   ids.forEach((q,i)=>L.push({id:q[0],l:q[1],x:W-52,y:H-206-i*54,r:24}));
   return L;
 }
 function act(id){
   if(id==='ladder')return doLadder();
-  if(id==='rail'){if(m.rails<=0&&!railMode){hint('No rails. Buy some at the shack.');return;}railMode=!railMode;sfx.click();if(railMode)layRail();hint(railMode?'Laying rail as you move.':'Rail laying off.');return;}
-  if(id==='elev'){if(m.elev<=0&&!elevMode){hint('No elevator. Buy some at the shack.');return;}elevMode=!elevMode;sfx.click();if(elevMode)layElev();hint(elevMode?'Building elevator as you move up and down.':'Elevator building off.');return;}
-  if(id==='bank'){bank();return;}
+  if(id==='rail'||id==='elev'){
+    const k=id==='rail'?'rails':'elev';
+    if(m[k]<=0&&m.tool!==id){hint('None left. Buy more at the shop.');return;}
+    m.tool=m.tool===id?null:id;sfx.click();
+    hint(m.tool?(id==='rail'?'RAIL tool: tap or drag the mine to place track.':'ELEVATOR tool: tap or drag the mine to place a lift.'):'Tool put away.',3);return;}
+  if(id==='bank'){if(canTrade())sellAll();return;}
   if(id==='cart')return doCart();
   if(id==='ride')return doRide();
   if(id==='lamp'){const i=idx(m.cx,m.cy);if(m.lamps<=0||lampA[i]||solid(m.cx,m.cy))return;lampA[i]=1;sendOp({k:'m',i});m.lamps--;lamps.push({x:m.cx,y:m.cy});sfx.click();hint('Lamp lit. Its glow reveals gold and gems nearby, and you wake here if knocked out.',4);bell(1400,.05);hint('Lamp hung.');return;}
@@ -501,15 +505,10 @@ function act(id){
   if(id==='dump'){addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-8,'Dumped '+m.py+' fool’s','#ff9a6c',14);m.py=0;sfx.thud();return;}
   if(id==='shop')return openShop();
 }
-function layRail(){
-  const i=idx(m.cx,m.cy);if(m.falling||rail[i]||solid(m.cx,m.cy))return;
-  if(m.rails<=0){railMode=false;hint('Out of rails.');return;}
-  rail[i]=1;sendOp({k:'r',i});m.rails--;m.laid++;sfx.step();if(m.rails<=0){railMode=false;hint('Out of rails.');}
-}
 function snapCart(c){return {id:c.id,team:c.team,owner:c.owner,x:c.x,y:c.y,g:c.g,py:c.py,path:c.path,t0:c.t0};}
 function pushCart(c){sendOp({k:'cart',c:snapCart(c)});}
 function takeFrom(c){
-  const room=CAP-m.g-m.py;if(room<=0||!(c.g+c.py))return 0;
+  const room=m.cap-m.g-m.py;if(room<=0||!(c.g+c.py))return 0;
   const a=Math.min(c.g,room),b=Math.min(c.py,room-a);if(!a&&!b)return 0;
   m.g+=a;m.py+=b;c.g-=a;c.py-=b;
   if(c.owner===NET.id)pushCart(c);else sendOp({k:'take',id:c.id,g:a,py:b});
@@ -541,19 +540,20 @@ function doCart(){
   const here=cartHere();
   if(here&&here.g+here.py===0){carts.splice(carts.indexOf(here),1);m.carts++;sendOp({k:'cdel',id:here.id});sfx.click();hint('Cart picked up.');return;}
   if(m.carts>0){
-    if(!rail[idx(m.cx,m.cy)]){hint('Carts need rail under them.');sfx.nope();return;}
+    if(!rail[idx(m.cx,m.cy)]&&!elev[idx(m.cx,m.cy)]){hint('Carts need rail or an elevator under them.');sfx.nope();return;}
     if(carts.some(c=>c.x===m.cx&&c.y===m.cy)){hint('Already a cart here.');return;}
     const c={id:NET.id+':'+(++NET.cc),team:m.team,owner:NET.id,x:m.cx,y:m.cy,rx:m.cx,ry:m.cy,g:0,py:0,mode:'idle',path:null,t0:0,cd:0,banked:false};
     carts.push(c);m.carts--;pushCart(c);sfx.ladder();hint('Cart set. Drop gold in it, then SEND.');return;
   }
 }
+const pass=i=>rail[i]===1||elev[i]===1;
 function findPath(sx,sy){
-  if(!rail[idx(sx,sy)])return null;
+  if(!pass(idx(sx,sy)))return null;
   const prev=new Map(),key=(x,y)=>y*COLS+x,q=[[sx,sy]];prev.set(key(sx,sy),null);
   while(q.length){
     const [x,y]=q.shift();
     if(y<=SURF){const path=[];let k=key(x,y);while(k!==null&&k!==undefined){path.push({x:k%COLS,y:Math.floor(k/COLS)});k=prev.get(k);}return path.reverse();}
-    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy;if(!inb(X,Y)||!rail[idx(X,Y)]||prev.has(key(X,Y)))continue;prev.set(key(X,Y),key(x,y));q.push([X,Y]);}
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy;if(!inb(X,Y)||!pass(idx(X,Y))||prev.has(key(X,Y)))continue;prev.set(key(X,Y),key(x,y));q.push([X,Y]);}
   }
   return null;
 }
@@ -588,19 +588,30 @@ function openShop(){
   state='shop';ptrs.clear();renderShop();elShop.style.display='flex';sfx.click();
 }
 const ITEMS=[
-  {k:'carts',n:'Rail cart',d:'Holds 30 gold. Sits on rails. Auto-sends when full.',price:100,q:1},
-  {k:'elev',n:'Elevator ×10',d:'A fast vertical lift. Toggle ELEV and move up or down to build it. Connect it to the surface and you can bank and shop from any elevator cell.',price:90,q:10},
-  {k:'rails',n:'Rails ×10',d:'Toggle RAIL and walk to lay track. Run it up to the surface so carts can haul.',price:30,q:10},
-  {k:'lamps',n:'Lamps ×2',d:'Hang a lamp to light and map a wide area for good.',price:50,q:2}
+  {k:'carts',n:'Rail cart',d:'Holds 30 gold. Rolls on rails and elevators. Auto-sends when full.',price:100,q:1},
+  {k:'elev',n:'Elevator ×10',d:'A fast vertical lift. Carts can ride it too. Connect it to the surface and you can sell and shop from beside any elevator or rail.',price:90,q:10},
+  {k:'rails',n:'Rails ×10',d:'You can walk on rails and lay them across gaps. Run them to the surface so carts can haul.',price:30,q:10},
+  {k:'lamps',n:'Lamps ×2',d:'Hang a lamp to light the area, and shake loose any gold it finds.',price:50,q:2},
+  {k:'cap',n:'Bigger pack +2',d:'Carry more gold at once.',price:()=>60+(m.cap-6)/2*60,q:2,max:30,get:()=>m.cap},
+  {k:'ladCap',n:'Ladder bag +5',d:'Carry and restock more ladders.',price:()=>40+(m.ladCap-10)/5*40,q:5,max:60,get:()=>m.ladCap,fill:true}
 ];
 function renderShop(){
   document.getElementById('shopcash').textContent='Cash $'+cashNow()+(NET.started&&!NET.coop?' (team)':NET.started?' (crew)':'');
   const box=document.getElementById('shoprows');box.innerHTML='';
-  for(const it of ITEMS){
+  const sv=sellValue();
+  if(sv>0||m.g+m.py>0){
     const r=document.createElement('div');r.className='row';
-    r.innerHTML=`<div class="d"><b>${it.n}</b><i>${it.d}</i></div><div class="own">own ${m[it.k]}</div>`;
-    const b=document.createElement('button');b.className='sm'+(cashNow()<it.price?' off':'');b.textContent='$'+it.price;
-    b.onclick=()=>{if(cashNow()<it.price){sfx.nope();return;}m.spent+=it.price;m[it.k]+=it.q;sfx.bank();renderShop();};
+    r.innerHTML=`<div class="d"><b>Sell everything</b><i>Your pack, gems and every cart of yours, in one go.</i></div><div class="own">worth $${sv}</div>`;
+    const b=document.createElement('button');b.className='sm';b.textContent='SELL ALL';
+    b.onclick=()=>{sellAll();renderShop();};r.appendChild(b);box.appendChild(r);
+  }
+  for(const it of ITEMS){
+    const pr=typeof it.price==='function'?it.price():it.price;
+    const have=it.get?it.get():m[it.k],maxed=it.max&&have>=it.max;
+    const r=document.createElement('div');r.className='row';
+    r.innerHTML=`<div class="d"><b>${it.n}</b><i>${it.d}</i></div><div class="own">${it.get?'now '+have:'own '+have}</div>`;
+    const b=document.createElement('button');b.className='sm'+(cashNow()<pr||maxed?' off':'');b.textContent=maxed?'MAX':'$'+pr;
+    b.onclick=()=>{if(maxed||cashNow()<pr){sfx.nope();return;}m.spent+=pr;m[it.k]+=it.q;if(it.fill)m.stock+=it.q;sfx.bank();renderShop();};
     r.appendChild(b);box.appendChild(r);
   }
 }
@@ -622,19 +633,57 @@ function doLadder(){
   if(n){sfx.ladder();addText((OX-camXr)+x*CS+8,(m.cy)*CS-camY-10,'Ladder x'+n,'#e8c98a',14);}
   else{hint('Nothing to build there.');sfx.nope();}
 }
-function setElev(x,y){const i=idx(x,y);elev[i]=1;lad[i]=1;m.elev--;sendOp({k:'e',i});sfx.ladder();if(m.elev<=0){elevMode=false;hint('Out of elevator.');}}
-function layElev(){const i=idx(m.cx,m.cy);if(m.falling||elev[i]||solid(m.cx,m.cy))return;if(m.elev<=0){elevMode=false;return;}setElev(m.cx,m.cy);}
+function setElev(x,y){const i=idx(x,y);elev[i]=1;lad[i]=1;m.elev--;sendOp({k:'e',i});sfx.ladder();if(m.elev<=0&&m.tool==='elev'){m.tool=null;hint('Out of elevator.');}}
+
+let tradeC={t:-9,v:false,k:''};
+function canTrade(){
+  if(atShack())return true;
+  if(m.falling)return false;
+  const key=m.cx+','+m.cy;
+  if(time-tradeC.t<.4&&tradeC.k===key)return tradeC.v;
+  let v=false;
+  for(let dy=-1;dy<=1&&!v;dy++)for(let dx=-1;dx<=1&&!v;dx++){const X=m.cx+dx,Y=m.cy+dy;if(inb(X,Y)&&pass(idx(X,Y))&&findPath(X,Y))v=true;}
+  tradeC={t:time,v,k:key};return v;
+}
+function sellValue(){
+  let v=0;const t=m.g+m.py;if(t>0)v+=Math.round(m.g*UV*(m.g/t));v+=m.gemVal||0;
+  for(const c of carts)if(c.owner===NET.id&&c.mode==='idle'&&c.g+c.py>0)v+=Math.round(c.g*UV*(c.g/(c.g+c.py)));
+  return v;
+}
+function sellAll(){
+  bank();
+  for(const c of carts)if(c.owner===NET.id&&c.mode==='idle'&&c.g+c.py>0){bankCart(c,false);pushCart(c);}
+}
+const cellAt=(px,py)=>({x:Math.floor((px+camXr-OX)/CS),y:Math.floor((py+camY)/CS)});
+function toolPlace(o){
+  if(!m.tool||state!=='play')return;
+  const q=cellAt(o.x,o.y);o.cell=q;
+  const key=q.x+','+q.y;if(o.last===key)return;o.last=key;
+  const {x,y}=q;
+  if(!inb(x,y)||y<SURF-1)return;
+  if(Math.hypot(x-m.cx,y-m.cy)>8){hint('Too far. Move closer.',1.4);return;}
+  if(solid(x,y)){hint('Dig that out first.',1.4);return;}
+  const i=idx(x,y);
+  if(m.tool==='rail'){
+    if(rail[i])return;
+    rail[i]=1;sendOp({k:'r',i});m.rails--;m.laid++;sfx.step();
+    if(m.rails<=0){m.tool=null;hint('Out of rails.');}
+  }else{
+    if(elev[i])return;
+    setElev(x,y);
+  }
+}
 function elevUp(){if(m.falling||!elev[idx(m.cx,m.cy)])return false;let y=m.cy;while(y>SURF-1&&elev[idx(m.cx,y-1)])y--;return y<=SURF;}
-const place=(x,y)=>{if(elevMode&&m.elev>0&&!elev[idx(x,y)]&&!solid(x,y)){setElev(x,y);return true;}if(m.stock>0&&!lad[idx(x,y)]&&!solid(x,y)){lad[idx(x,y)]=1;sendOp({k:'l',i:idx(x,y)});m.stock--;sfx.ladder();return true;}return false;};
+const place=(x,y)=>{if(m.stock>0&&!lad[idx(x,y)]&&!solid(x,y)){lad[idx(x,y)]=1;sendOp({k:'l',i:idx(x,y)});m.stock--;sfx.ladder();return true;}return false;};
 const hasLad=()=>lad[idx(m.cx,m.cy)]===1;
-const supported=()=>m.ride||m.cling||hasLad()||solid(m.cx,m.cy+1)||m.cy===SURF-1;
+const supported=()=>m.ride||m.cling||hasLad()||rail[idx(m.cx,m.cy)]===1||solid(m.cx,m.cy+1)||m.cy===SURF-1;
 const chimney=()=>solid(m.cx-1,m.cy)||solid(m.cx+1,m.cy);
 
 /* ================= UPDATE ================= */
 const nearCart=(x,y)=>carts.find(c=>c.mode==='idle'&&c.team===m.team&&Math.abs(c.x-x)+Math.abs(c.y-y)<=6&&c.g+c.py<CARTCAP);
 function give(g,py,x,y){
   const px=(OX-camXr)+x*CS+8,pyy=y*CS-camY;
-  let room=CAP-m.g-m.py;
+  let room=m.cap-m.g-m.py;
   const tg=Math.min(g,room);m.g+=tg;g-=tg;room-=tg;
   const tp=Math.min(py,room);m.py+=tp;py-=tp;
   if(g||py){
@@ -642,7 +691,7 @@ function give(g,py,x,y){
     if(c){const [a,b]=loadCart(c,g,py);g-=a;py-=b;if(a||b){addText(px,pyy-10,'→ cart','#e8c98a',14);sfx.load();}}
   }
   if(g||py){
-    let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!lad[idx(x,ly)])ly++;
+    let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!lad[idx(x,ly)]&&!rail[idx(x,ly)])ly++;
     setLoot(idx(x,ly),loot[idx(x,ly)]+g,lootPy[idx(x,ly)]+py);addText(px,pyy-10,'Too heavy! Left on the ground','#ff9a6c',13);
   }
 }
@@ -668,7 +717,7 @@ function rideMove(d){
   const c=rideCart();if(!c||c.mode!=='idle'){m.ride=null;return;}
   if(!d){return;}
   const tx=m.cx+d.dx,ty=m.cy+d.dy;
-  if(!inb(tx,ty)||!rail[idx(tx,ty)]||(solid(tx,ty))){return;}
+  if(!inb(tx,ty)||!(rail[idx(tx,ty)]||elev[idx(tx,ty)])||(solid(tx,ty))){return;}
   m.cx=tx;m.cy=ty;m.cd=.07;m.face=d.dx||m.face;
   c.x=tx;c.y=ty;c.rx=tx;c.ry=ty;
   m.rideT-=.07;
@@ -689,8 +738,12 @@ function actMove(dt){
       }
       m.dig=null;if(hintT<=0)hint('Blocked. Use the DIG pad to dig.',2);return;
     }
+    if(!on&&!m.cling&&inb(tx+d.dx,ty)&&!solid(tx,ty+1)&&!lad[idx(tx,ty)]&&!rail[idx(tx,ty)]&&ty!==SURF-1){
+      const bx=tx+d.dx;
+      if(!solid(bx,ty)&&(solid(bx,ty+1)||lad[idx(bx,ty)]||rail[idx(bx,ty)])){m.dig=null;m.cx=bx;m.cd=.32;m.hop=.3;sfx.step();return;}
+    }
     m.dig=null;m.cx=tx;m.cd=on?.2:.15;m.cling=false;sfx.step();
-    if(inb(tx,ty+1)&&!solid(tx,ty+1)&&!lad[idx(tx,ty+1)]&&!lad[idx(tx,ty)]&&solid(tx,ty+2)&&ty+1<=ROWS-1){m.cy=ty+1;m.cd=.2;}
+    if(inb(tx,ty+1)&&!solid(tx,ty+1)&&!lad[idx(tx,ty+1)]&&!lad[idx(tx,ty)]&&!rail[idx(tx,ty)]&&solid(tx,ty+2)&&ty+1<=ROWS-1){m.cy=ty+1;m.cd=.2;}
     return;
   }
   if(d.dy<0){
@@ -723,7 +776,7 @@ function land(){
 }
 function knockOut(){
   if(state!=='play')return;if(m.ride){const c=rideCart();m.ride=null;if(c)syncRide(c,true);}m.kx=m.cx;m.ky=m.cy;
-  state='ko';koT=2.1;ptrs.clear();m.dig=null;m.knocks++;railMode=false;elevMode=false;
+  state='ko';koT=2.1;ptrs.clear();m.dig=null;m.knocks++;m.tool=null;
   const i=idx(m.cx,m.cy);setLoot(i,Math.min(255,loot[i]+m.g),Math.min(255,lootPy[i]+m.py));m.g=0;m.py=0;
   sfx.over();
 }
@@ -732,12 +785,12 @@ function respawn(){
   for(const l of lamps){const dd=Math.abs(l.x-m.kx)+Math.abs(l.y-m.ky);if(dd<bd&&!solid(l.x,l.y)){bd=dd;sx=l.x;sy=l.y;atLamp=true;}}
   m.cx=sx;m.cy=sy;m.rx=sx;m.ry=sy;m.hp=HEART*4;m.falling=false;m.fallN=0;m.cling=false;m.dig=null;m.cd=.3;m.lx=sx;m.ly=sy;
   if(!supported())m.cling=true;
-  m.stock=Math.max(m.stock,10);
+  m.stock=Math.max(m.stock,m.ladCap);
   camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
   state='play';hint(atLamp?'You wake beside a lamp. Your pack is where you fell.':'You wake at the shack. Your pack is where you fell.',4);
 }
 function bank(){
-  const heal=m.hp<HEART*4,rest=m.stock<10;
+  const heal=m.hp<HEART*4,rest=m.stock<m.ladCap;
   if(m.g>0||m.py>0){
     const tot=m.g+m.py,pur=m.g/tot,val=Math.round(m.g*UV*pur);
     m.banked+=val;m.trips++;sfx.bank();
@@ -748,9 +801,19 @@ function bank(){
   }
   if(m.gemVal>0){m.banked+=m.gemVal;m.trips++;sfx.bank();addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-52,'+$'+m.gemVal+' gems','#9fd0ff',20);burst((OX-camXr)+m.cx*CS+8,m.cy*CS-camY,16,['#e8344f','#2fcf7a','#3b7bff','#fff'],110,80);m.gems=0;m.gemVal=0;}
   if(heal){m.hp=HEART*4;addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-30,'Rested','#9be7a8',13);}
-  if(rest)m.stock=10;
+  if(rest)m.stock=m.ladCap;
+}
+function dropOre(x,y,t){
+  const i=idx(x,y);grid[i]=0;
+  let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!lad[idx(x,ly)]&&!rail[idx(x,ly)])ly++;
+  const li=idx(x,ly);
+  const g=t===3?1:t===5?5:0,p=t===4?1:0;
+  loot[li]=Math.min(255,loot[li]+g);lootPy[li]=Math.min(255,lootPy[li]+p);
+  if(seen[li]<1)seen[li]=1;
+  if(Math.random()<.5)burst((OX-camXr)+x*CS+8,y*CS-camY+8,4,['#ffd23a','#fff2a0'],50,20);
 }
 function updateSeen(){
+  for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y)||Math.hypot(dx,dy)>5)continue;const t=grid[idx(x,y)];if(t>=3&&t<=5)dropOre(x,y,t);}
   for(const l of lamps)for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const x=l.x+dx,y=l.y+dy;if(!inb(x,y))continue;const d=Math.hypot(dx,dy),i=idx(x,y);if(d<=5&&seen[i]<1)seen[i]=1;if(d<=5){const t=grid[i];if(t>=3&&t<=6||t===8)seen[i]=2;}}
   const R=7;
   for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
@@ -765,6 +828,7 @@ function update(dt){
   if(shake>0)shake=Math.max(0,shake-dt*30);
   if(flash>0)flash=Math.max(0,flash-dt*1.4);
   if(hintT>0)hintT-=dt;
+  if(m&&m.hop>0)m.hop-=dt;
   if(state==='play'){
     m.cd-=dt;
     if(m.cling&&(solid(m.cx,m.cy+1)||hasLad()))m.cling=false;
@@ -778,11 +842,11 @@ function update(dt){
         if(m.cy>=ROWS-3){m.cy=ROWS-4;land();break;}
       }
     }else if(!doDig(dt)){if(m.cd<=0)actMove(dt);else if(!movePtr()&&!getDigDir())m.dig=null;}
-    if(m.cx!==m.lx||m.cy!==m.ly){m.lx=m.cx;m.ly=m.cy;if(railMode)layRail();if(elevMode)layElev();}
+    if(m.cx!==m.lx||m.cy!==m.ly){m.lx=m.cx;m.ly=m.cy;}
     if(!m.falling&&state==='play'){
       const li=idx(m.cx,m.cy);
       if(loot[li]||lootPy[li]){
-        const room=CAP-m.g-m.py;
+        const room=m.cap-m.g-m.py;
         if(room>0){const a=Math.min(loot[li],room),b=Math.min(lootPy[li],room-a);m.g+=a;m.py+=b;setLoot(li,loot[li]-a,lootPy[li]-b);sfx.gold();addText((OX-camXr)+m.cx*CS+8,m.cy*CS-camY-8,'Picked up '+(a+b),'#ffd23a',14);}
         else if(time-m.hintLoot>2){m.hintLoot=time;hint('Too heavy. Bank it or use a cart.');}
       }
@@ -816,7 +880,7 @@ function update(dt){
 }
 function endGame(why){
   if(state!=='play'&&state!=='ko')return;
-  state='dead';endWhy=why;ptrs.clear();m.dig=null;
+  state='dead';endWhy=why;ptrs.clear();m.dig=null;if(soloNow())clearSave();
   m.late=0;for(const c of carts){if(c.owner===NET.id&&c.g+c.py>0){const p=c.mode==='idle'?findPath(c.x,c.y):true;if(p){m.late+=bankCart(c,true);pushCart(c);}}}
   why==='out'?sfx.over():sfx.done();
   setTimeout(showResults,1400);
@@ -842,10 +906,51 @@ function showResults(){
   document.getElementById('again').onclick=()=>{A();sfx.click();if(mp){NET.started=false;NET.go=null;NET.cc=0;NET.pre=[];NET.seenOps=new Set();elOver.style.display='none';state='lobby';pushPresence(true);renderLobby();elLobby.style.display='flex';}else resetGame();};
 }
 document.getElementById('shopfinish').onclick=()=>{A();sfx.click();elShop.style.display='none';state='play';endGame('done');};
-document.getElementById('play').onclick=()=>{A();sfx.click();netLeave();resetGame();};
+const elPlay=document.getElementById('play'),elCont=document.getElementById('cont');
+let armNew=false;
+function titleSave(){const h=hasSave();elCont.style.display=h?'':'none';armNew=false;elPlay.textContent=h?'New game':'Solo';}
+elCont.onclick=()=>{A();sfx.click();netLeave();if(!loadGame()){titleSave();}};
+elPlay.onclick=()=>{A();sfx.click();if(hasSave()&&!armNew){armNew=true;elPlay.textContent='Erase save & start?';return;}netLeave();clearSave();resetGame();};
+
 if(!MPOK()||(window.Coop&&window.Coop.active))document.getElementById('mp').style.display='none';
 if(window.Coop&&window.Coop.active)setTimeout(startCoop,0);
 document.getElementById('mp').onclick=()=>{A();sfx.click();elTitle.style.display='none';state='lobby';renderLobby();elLobby.style.display='flex';};
+
+/* ================= SAVE / RESUME (solo) ================= */
+const SAVE_KEY='prospector_save_v1';
+const ARR=()=>[grid,lad,seen,clue,rail,lampA,elev,gemC,loot,lootPy];
+const b64e=a=>{let t='';for(let i=0;i<a.length;i+=8192)t+=String.fromCharCode.apply(null,a.subarray(i,i+8192));return btoa(t);};
+const b64d=(t,a)=>{const u=atob(t);for(let i=0;i<a.length;i++)a[i]=u.charCodeAt(i);};
+const soloNow=()=>!NET.started&&!(window.Coop&&window.Coop.active);
+function saveGame(){
+  if(!m||!soloNow()||(state!=='play'&&state!=='shop'&&state!=='ko'))return;
+  try{
+    const mm=Object.assign({},m,{ride:null,dig:null,falling:false,fallN:0,cling:false,tool:null});
+    localStorage.setItem(SAVE_KEY,JSON.stringify({v:1,t:Date.now(),arr:ARR().map(b64e),carts,lamps,m:mm,shop:shopSeen,ko:state==='ko'}));
+  }catch(e){}
+}
+function hasSave(){try{const j=localStorage.getItem(SAVE_KEY);return !!j&&JSON.parse(j).v===1;}catch(e){return false;}}
+function clearSave(){try{localStorage.removeItem(SAVE_KEY);}catch(e){}}
+function loadGame(){
+  let d;try{d=JSON.parse(localStorage.getItem(SAVE_KEY));}catch(e){return false;}
+  if(!d||d.v!==1)return false;
+  try{
+    resetGame();
+    ARR().forEach((a,i)=>b64d(d.arr[i],a));
+    m=Object.assign(newMiner(),d.m);m.ride=null;m.dig=null;m.falling=false;m.tool=null;m.hop=0;
+    m.rx=m.cx;m.ry=m.cy;m.lx=m.cx;m.ly=m.cy;m.cd=.3;
+    carts=(d.carts||[]).map(c=>Object.assign(c,{owner:NET.id,rx:c.x,ry:c.y,cd:0}));
+    lamps=d.lamps||[];shopSeen=!!d.shop;NET.cc=carts.length+100;
+    if(!supported())m.cling=true;
+    camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
+    if(d.ko){m.kx=m.cx;m.ky=m.cy;state='ko';koT=.3;}
+    hint('Welcome back. Your mine is just as you left it.',4);
+    return true;
+  }catch(e){return false;}
+}
+setInterval(saveGame,5000);
+addEventListener('pagehide',saveGame);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveGame();});
 
 /* ================= DRAW ================= */
 function drawWorld(c){
@@ -996,7 +1101,7 @@ function drawMiner(c){
   }
   const col=NET.started?teamCol(m.team):null;
   if(state==='ko')return;
-  drawMinerAt(c,m.rx,m.ry,{self:true,face:m.face,on:(hasLad()||m.cling)&&!m.falling,dg:!!m.dig,swing:m.swing,cling:m.cling,wall:chimney(),fall:m.falling?m.fallN:0,hat:col,body:col,name:NET.started?'You':null});
+  drawMinerAt(c,m.rx,m.ry-(m.hop>0?Math.sin(Math.PI*(1-m.hop/.3))*.8:0),{self:true,face:m.face,on:(hasLad()||m.cling)&&!m.falling,dg:!!m.dig,swing:m.swing,cling:m.cling,wall:chimney(),fall:m.falling?m.fallN:0,hat:col,body:col,name:NET.started?'You':null});
 }
 function drawHUD(c){
   c.fillStyle='rgba(12,8,5,.6)';c.beginPath();if(c.roundRect)c.roundRect(6,6,W-12,28,10);else c.rect(6,6,W-12,28);c.fill();
@@ -1009,7 +1114,7 @@ function drawHUD(c){
   c.font='800 16px -apple-system,system-ui,sans-serif';c.textBaseline='middle';
   const mm=Math.floor(Math.max(0,left)/60),ss=Math.floor(Math.max(0,left)%60),port=W<600;
   
-  c.fillStyle='#ffd23a';c.fillStyle=m.g+m.py>=CAP?'#ff8a6c':'#ffd23a';c.fillText(`Pack ${m.g+m.py}/${CAP}${m.py?`  (${m.py} fool’s)`:''}${m.gems?`  ◆${m.gems}`:''}`,port?W/2:W/2+40,port?52:21);
+  c.fillStyle='#ffd23a';c.fillStyle=m.g+m.py>=m.cap?'#ff8a6c':'#ffd23a';c.fillText(`Pack ${m.g+m.py}/${m.cap}${m.py?`  (${m.py} fool’s)`:''}${m.gems?`  ◆${m.gems}`:''}`,port?W/2:W/2+40,port?52:21);
   c.textAlign='right';c.fillStyle='#9be7a8';c.fillText('Cash $'+cashNow(),W-18,21);
   c.textBaseline='alphabetic';
   if(NET.started){
@@ -1022,9 +1127,15 @@ function drawHUD(c){
   }
   c.textAlign='left';c.font='800 12px -apple-system,system-ui,sans-serif';c.fillStyle='rgba(255,255,255,.8)';
   c.fillText('Depth '+Math.max(0,m.cy-SURF+1)+' m',12,W<600?100:52);
+  if(m.tool&&state==='play'){
+    for(const o of ptrs.values())if(o.tl&&o.cell){const p=cellPx(o.cell.x,o.cell.y);c.strokeStyle='#ffd23a';c.lineWidth=2;c.strokeRect(p.x+1,p.y+1,CS-2,CS-2);}
+    const msg=(m.tool==='rail'?'RAIL TOOL':'ELEVATOR TOOL')+': tap or drag to place. Tap the button again to stop.';
+    c.font='800 12px -apple-system,system-ui,sans-serif';c.textAlign='center';const tw=c.measureText(msg).width+24,ty=W<600?122:70;
+    c.fillStyle='rgba(12,8,5,.75)';c.fillRect(W/2-tw/2,ty-13,tw,22);c.fillStyle='#ffd23a';c.fillText(msg,W/2,ty+2);
+  }
   // buttons
   for(const bt of btnList()){
-    const on=[...ptrs.values()].some(o=>o.btn)&&bt.id==='ladder'||(bt.id==='rail'&&railMode)||(bt.id==='elev'&&elevMode);
+    const on=[...ptrs.values()].some(o=>o.btn)&&bt.id==='ladder'||(bt.id==='rail'&&m.tool==='rail')||(bt.id==='elev'&&m.tool==='elev');
     c.fillStyle=on?'rgba(255,210,58,.9)':'rgba(30,20,10,.7)';c.beginPath();c.arc(bt.x,bt.y,bt.r,0,7);c.fill();
     c.strokeStyle='#ffd23a';c.lineWidth=2.5;c.stroke();
     if(bt.id==='ladder'){
@@ -1089,7 +1200,7 @@ function draw(){
 }
 
 /* ================= LOOP ================= */
-resetGame();state='title';elTitle.style.display='flex';
+resetGame();state='title';elTitle.style.display='flex';titleSave();
 let last=performance.now();
 function loop(now){
   let dt=Math.min(.033,(now-last)/1000);last=now;
