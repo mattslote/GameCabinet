@@ -813,7 +813,7 @@ function dropLoose(){
     let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!rail[idx(x,ly)])ly++;
     const li=idx(x,ly);
     setLoot(li,Math.min(255,loot[li]+(t===3?1:t===5?5:0)),Math.min(255,lootPy[li]+(t===4?1:0)));
-    burst((OX-camXr)+x*CS+8,y*CS-camY+8,5,['#ffd23a','#fff2a0'],50,20);
+    if(seen[idx(x,y)]>=2)burst((OX-camXr)+x*CS+8,y*CS-camY+8,5,['#ffd23a','#fff2a0'],50,20);
   }
 }
 function updateSeen(){
