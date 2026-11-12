@@ -47,6 +47,7 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
     <p>Dig for gold in the old mine. Take all the time you want. Solo, or up to 8 prospectors in teams.</p>
     <div class="steps">
       <div><b>1</b><em>LEFT PAD</em> walks, hops and climbs. <em>RIGHT PAD</em> digs the block it points at.</div>
+      <div><b>⌨</b>On a computer: <em>WASD</em> moves, <em>ARROW KEYS</em> dig, <em>SPACE</em> ladder, <em>E</em> place rail or lift.</div>
       <div><b>2</b><em>READ THE DIRT</em> &mdash; black specks hint at ore. Warm round glints are gold, pale square glints are fool&rsquo;s gold.</div>
       <div><b>3</b><em>GOLD IS HEAVY</em> &mdash; you carry only 6. Bank it at the shack for cash, or load it into a <em>rail cart</em>.</div>
       <div><b>4</b><em>BUILD</em> &mdash; spend cash at the shack on <em>rails, carts and lamps</em>. Rails run from a cart up to the surface; <em>SEND</em> hauls the load and banks it.</div>
@@ -266,13 +267,29 @@ const rel=e=>ptrs.delete(e.pointerId);
 cv.addEventListener('pointerup',rel);cv.addEventListener('pointercancel',rel);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
+const keys=[];
+const KM={KeyW:[0,-1],KeyA:[-1,0],KeyS:[0,1],KeyD:[1,0]},KD={ArrowUp:[0,-1],ArrowLeft:[-1,0],ArrowDown:[0,1],ArrowRight:[1,0]};
+function kbDir(map){for(let i=keys.length-1;i>=0;i--){const v=map[keys[i]];if(v)return {dx:v[0],dy:v[1]};}return null;}
+addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const c=e.code;
+  if(KM[c]||KD[c]||c==='Space'||c==='KeyE'){
+    if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
+    e.preventDefault();A();if(!keys.includes(c))keys.push(c);
+    if(!e.repeat&&state==='play'){if(c==='Space')doLadder();else if(c==='KeyE')doPlace();}
+  }
+});
+addEventListener('keyup',e=>{const i=keys.indexOf(e.code);if(i>=0)keys.splice(i,1);});
+addEventListener('blur',()=>{keys.length=0;});
 function movePtr(){
+  if(kbDir(KM))return {kb:true,x:0,y:0};
   for(const o of ptrs.values())if(o.pad)return o;
   for(const o of ptrs.values())if(!o.btn&&!o.dpad&&!o.tl)return o;
   return null;
 }
 let lastDigH=true;
 function getDigDir(){
+  const kd=kbDir(KD);if(kd){lastDigH=!kd.dy;return kd;}
   let o=null;for(const q of ptrs.values())if(q.dpad){o=q;break;}
   if(!o)return null;
   const dx=o.x-DPAD.x,dy=o.y-DPAD.y,ax=Math.abs(dx),ay=Math.abs(dy);
@@ -290,6 +307,7 @@ function doDig(dt){
   dig(tx,ty,dt);return true;
 }
 function getDir(){
+  const kd=kbDir(KM);if(kd){lastHoriz=!kd.dy;return kd;}
   const o=movePtr();if(!o)return null;
   const ox=o.pad?PAD.x:(OX-camXr)+m.rx*CS+CS/2,oy=o.pad?PAD.y:m.ry*CS-camY+CS/2;
   const dx=o.x-ox,dy=o.y-oy,ax=Math.abs(dx),ay=Math.abs(dy);
@@ -1189,7 +1207,7 @@ function drawHUD(c){
   }
   // finger arrow
   const d=getDir();
-  if(d&&state==='play'&&!(movePtr()&&movePtr().pad)){const x=(OX-camXr)+m.rx*CS+8,y=m.ry*CS-camY+8;c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=3;c.lineCap='round';c.beginPath();c.moveTo(x+d.dx*14,y+d.dy*14);c.lineTo(x+d.dx*24,y+d.dy*24);c.stroke();}
+  if(d&&state==='play'&&!(movePtr()&&(movePtr().pad||movePtr().kb))){const x=(OX-camXr)+m.rx*CS+8,y=m.ry*CS-camY+8;c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=3;c.lineCap='round';c.beginPath();c.moveTo(x+d.dx*14,y+d.dy*14);c.lineTo(x+d.dx*24,y+d.dy*24);c.stroke();}
   if(hintT>0){c.globalAlpha=clamp(hintT*2,0,1);c.textAlign='center';c.font='800 13px -apple-system,system-ui,sans-serif';c.fillStyle='rgba(0,0,0,.6)';c.fillText(hintTxt,W/2+1,W<600?100:H-14);c.fillStyle='#fff';c.fillText(hintTxt,W/2,W<600?99:H-15);c.globalAlpha=1;}
   for(const t of texts){c.globalAlpha=clamp(t.life*2,0,1);c.font=`900 ${t.size}px -apple-system,system-ui,sans-serif`;c.textAlign='center';c.lineWidth=4;c.strokeStyle='rgba(0,0,0,.7)';c.strokeText(t.txt,t.x,t.y);c.fillStyle=t.color;c.fillText(t.txt,t.x,t.y);c.globalAlpha=1;}
 }
