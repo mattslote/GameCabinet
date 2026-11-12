@@ -85,6 +85,7 @@ for(const t in BASE)pal[t]=BASE[t].map(c=>Array.from({length:13},(_,l)=>{const f
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),rand=(a,b)=>a+Math.random()*(b-a),lerp=(a,b,t)=>a+(b-a)*t;
 const hs=(x,y)=>(((x*73856093)^(y*19349663))>>>0);
 const idx=(x,y)=>y*COLS+x;
+const CAMB=210,CAMS=130;
 
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),stage=document.getElementById('stage');
 const elTitle=document.getElementById('title'),elOver=document.getElementById('over'),elShop=document.getElementById('shop'),elLobby=document.getElementById('lobby');
@@ -234,11 +235,11 @@ try{best=+localStorage.getItem('prospector_best')||0;}catch(e){}
 function newMiner(){return {cx:8,cy:SURF-1,rx:8,ry:SURF-1,cd:0,falling:false,fallN:0,fcd:0,face:1,dig:null,swing:0,hp:HEART*4,stock:10,cap:6,ladCap:10,tool:null,hop:0,g:0,py:0,banked:0,spent:0,elev:0,ride:null,rideT:0,team:0,sx:8,cling:false,knocks:0,rails:0,carts:0,lamps:1,laid:0,lx:8,ly:SURF-1,trips:0,hintLoot:0,minedG:0,deepest:0,falls:0,digSfx:0,on:false};}
 function resetGame(seed,go){
   gen(seed);m=newMiner();parts=[];texts=[];ptrs.clear();left=DAY;hurtT=0;shake=0;flash=0;hintT=0;lastDir=null;
-  camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
+  camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H+CAMB);camX=camXr=clamp(m.rx*CS+8+OX-W/2,-CAMS,Math.max(0,COLS*CS+OX*2-W)+CAMS);
   elTitle.style.display='none';elOver.style.display='none';elLobby.style.display='none';elShop.style.display='none';
   if(go){
     const i=Math.max(0,NET.order.indexOf(NET.id));m.team=NET.tm[NET.id]||0;m.sx=2+i;m.cx=m.rx=m.lx=m.sx;
-    camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
+    camX=camXr=clamp(m.rx*CS+8+OX-W/2,-CAMS,Math.max(0,COLS*CS+OX*2-W)+CAMS);
     state=Date.now()<go.startAt?'count':'play';
   }else state='play';
   shopSeen=false;hint('Left pad moves. Right pad digs. Lamps reveal gold.',6);
@@ -786,7 +787,7 @@ function respawn(){
   m.cx=sx;m.cy=sy;m.rx=sx;m.ry=sy;m.hp=HEART*4;m.falling=false;m.fallN=0;m.cling=false;m.dig=null;m.cd=.3;m.lx=sx;m.ly=sy;
   if(!supported())m.cling=true;
   m.stock=Math.max(m.stock,m.ladCap);
-  camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
+  camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H+CAMB);camX=camXr=clamp(m.rx*CS+8+OX-W/2,-CAMS,Math.max(0,COLS*CS+OX*2-W)+CAMS);
   state='play';hint(atLamp?'You wake beside a lamp. Your pack is where you fell.':'You wake at the shack. Your pack is where you fell.',4);
 }
 function bank(){
@@ -875,8 +876,8 @@ function update(dt){
   for(const id in NET.peers){if(id===NET.id)continue;const sp=NET.peers[id];if(sp.x==null)continue;const r=NET.rp[id]||(NET.rp[id]={x:sp.x,y:sp.y});r.x+=(sp.x-r.x)*Math.min(1,dt*14);r.y+=(sp.y-r.y)*Math.min(1,dt*14);}
   const k=Math.min(1,dt*(m.falling?30:20));
   m.rx+=(m.cx-m.rx)*k;m.ry+=(m.cy-m.ry)*k;
-  const ty=clamp(m.ry*CS+CS/2-H/2,0,ROWS*CS-H);camY+=(ty-camY)*Math.min(1,dt*7);
-  const tx2=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));camX+=(tx2-camX)*Math.min(1,dt*7);camXr=Math.round(camX);
+  const ty=clamp(m.ry*CS+CS/2-H/2,0,ROWS*CS-H+CAMB);camY+=(ty-camY)*Math.min(1,dt*7);
+  const tx2=clamp(m.rx*CS+8+OX-W/2,-CAMS,Math.max(0,COLS*CS+OX*2-W)+CAMS);camX+=(tx2-camX)*Math.min(1,dt*7);camXr=Math.round(camX);
   for(const p of parts){p.vy+=p.g*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}
   parts=parts.filter(p=>p.life>0);
   for(const t of texts){t.y-=28*dt;t.life-=dt;}
@@ -946,7 +947,7 @@ function loadGame(){
     carts=(d.carts||[]).map(c=>Object.assign(c,{owner:NET.id,rx:c.x,ry:c.y,cd:0}));
     lamps=d.lamps||[];shopSeen=!!d.shop;NET.cc=carts.length+100;
     if(!supported())m.cling=true;
-    camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H);camX=camXr=clamp(m.rx*CS+8+OX-W/2,0,Math.max(0,COLS*CS+OX*2-W));
+    camY=clamp(m.ry*CS-H/2,0,ROWS*CS-H+CAMB);camX=camXr=clamp(m.rx*CS+8+OX-W/2,-CAMS,Math.max(0,COLS*CS+OX*2-W)+CAMS);
     if(d.ko){m.kx=m.cx;m.ky=m.cy;state='ko';koT=.3;}
     hint('Welcome back. Your mine is just as you left it.',4);
     return true;
