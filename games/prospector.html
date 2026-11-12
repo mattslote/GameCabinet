@@ -691,7 +691,7 @@ function give(g,py,x,y){
     if(c){const [a,b]=loadCart(c,g,py);g-=a;py-=b;if(a||b){addText(px,pyy-10,'→ cart','#e8c98a',14);sfx.load();}}
   }
   if(g||py){
-    let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!lad[idx(x,ly)]&&!rail[idx(x,ly)])ly++;
+    let ly=y;while(ly<ROWS-4&&!solid(x,ly+1)&&!rail[idx(x,ly)])ly++;
     setLoot(idx(x,ly),loot[idx(x,ly)]+g,lootPy[idx(x,ly)]+py);addText(px,pyy-10,'Too heavy! Left on the ground','#ff9a6c',13);
   }
 }
