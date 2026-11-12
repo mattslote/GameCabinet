@@ -30,6 +30,8 @@ input.nm{width:130px;text-transform:none}
 .tbtn{font-size:14px;padding:5px 14px;border-radius:9px;box-shadow:0 2px 0 #333;background:#3a3a3a;color:#ddd}
 .tbtn.on{background:#ffd23a;color:#3b2406}
 .dim{opacity:.55}
+#titlebtns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:100%}
+#titlebtns button{padding:10px 20px;font-size:19px;white-space:nowrap}
 button.sec{background:#5a4a3a;color:#fff;box-shadow:0 3px 0 #2a1e12}
 table{border-collapse:collapse;margin:4px 0 10px;font-size:16px}
 td{padding:2px 14px;text-align:left}
@@ -47,14 +49,14 @@ td:last-child{text-align:right;font-weight:800;color:#ffd23a}
     <p>Dig for gold in the old mine. Take all the time you want. Solo, or up to 8 prospectors in teams.</p>
     <div class="steps">
       <div><b>1</b><em>LEFT PAD</em> walks, hops and climbs. <em>RIGHT PAD</em> digs the block it points at.</div>
-      <div><b>⌨</b>On a computer: <em>WASD</em> moves, <em>ARROW KEYS</em> dig, <em>SPACE</em> ladder, <em>E</em> place rail or lift.</div>
+      <div><b>+</b>On a computer: <em>WASD</em> moves, <em>ARROW KEYS</em> dig, <em>SPACE</em> ladder, <em>E</em> place rail or lift.</div>
       <div><b>2</b><em>READ THE DIRT</em> &mdash; black specks hint at ore. Warm round glints are gold, pale square glints are fool&rsquo;s gold.</div>
       <div><b>3</b><em>GOLD IS HEAVY</em> &mdash; you carry only 6. Bank it at the shack for cash, or load it into a <em>rail cart</em>.</div>
       <div><b>4</b><em>BUILD</em> &mdash; spend cash at the shack on <em>rails, carts and lamps</em>. Rails run from a cart up to the surface; <em>SEND</em> hauls the load and banks it.</div>
       <div><b>5</b><em>LADDERS</em> &mdash; tap LADDER to drop a run toward where you were heading.</div>
       <div><b>6</b><em>FALLS HURT</em> &mdash; 3 cells or more costs hearts. Knocked out? You wake at the shack, your pack stays where you fell, carts stay safe. You can always haul yourself up, slowly.</div>
     </div>
-    <div style="display:flex;gap:14px"><button id="cont" style="display:none">Continue</button><button id="play">Solo</button><button id="mp" class="sec">Multiplayer</button></div>
+    <div id="titlebtns"><button id="cont" style="display:none">Continue</button><button id="play">Solo</button><button id="mp" class="sec">Multiplayer</button></div>
     <div class="testing"><b>Still testing</b>Prospector is a work in progress. Future updates may change the mine, prices, rules and saved bests, which can affect your progress. Solo games autosave on this device and you can Continue later.</div>
   </div>
   <div id="over" class="ov"></div>
